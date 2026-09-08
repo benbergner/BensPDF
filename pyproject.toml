@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "benspdf-mcp"
+version = "0.1.0"
+description = "Local PDF tools for AI agents, exposed over the Model Context Protocol"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Benjamin Bergner", email = "bergner.benjamin@gmail.com"}
+]
+keywords = ["mcp", "pdf", "llm", "agents", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing",
+]
+dependencies = [
+    "pypdf>=4.0.0",
+    "mcp>=2.0.0",
+]
+
+[project.scripts]
+benspdf-mcp = "benspdf.mcp_server:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+]
+ollama = ["ollama>=0.1.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

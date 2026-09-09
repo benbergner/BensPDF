@@ -5,29 +5,42 @@ Spawns the server as a local subprocess and talks to it over stdio, so
 PDF processing stays on this machine.
 """
 
-import os
+import shlex
 import sys
-from typing import List, Dict, Any, Optional
+from types import TracebackType
+from typing import List, Dict, Any, Optional, Sequence, Type, Union
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
+
+
+class MCPToolError(RuntimeError):
+    """Raised when the server reports that a tool call failed."""
 
 
 class MCPClient:
     """Simple MCP client that connects to MCP servers."""
     
-    def __init__(self, server_command: str = None):
+    def __init__(self, server_command: Optional[Union[str, Sequence[str]]] = None):
         """
         Initialize MCP client.
         
         Args:
-            server_command: Command to start the MCP server (defaults to conda python)
+            server_command: Command to start the MCP server, as a list of
+                arguments. A string is accepted too and split like a shell
+                would. Defaults to running the server with this same
+                interpreter.
         """
         if server_command is None:
             # Reuse the interpreter running this client, so the server is
-            # guaranteed to have the same dependencies installed.
-            server_command = f"{sys.executable} -m benspdf.mcp_server"
+            # guaranteed to have the same dependencies installed. Kept as a
+            # list because sys.executable may contain spaces.
+            server_command = [sys.executable, "-m", "benspdf.mcp_server"]
+        elif isinstance(server_command, str):
+            server_command = shlex.split(server_command)
         
-        self.server_command = server_command
+        self.server_command = list(server_command)
+        if not self.server_command:
+            raise ValueError("server_command must not be empty")
         self.session: Optional[ClientSession] = None
         self.tools: List[Any] = []
         self._read = None
@@ -40,21 +53,29 @@ class MCPClient:
         await self.connect()
         return self
     
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        """
+        Async context manager exit.
+
+        The exception is deliberately not forwarded to the streams and session
+        underneath. `stdio_client` is an @asynccontextmanager wrapping an anyio
+        task group, so throwing the exception in at its yield point makes the
+        group re-raise it as an ExceptionGroup, hiding the original error.
+        Returning None here lets the real exception propagate untouched.
+        """
         await self.close()
     
     async def connect(self):
         """Connect to the MCP server."""
-        # Parse command
-        parts = self.server_command.split()
-        command = parts[0]
-        args = parts[1:] if len(parts) > 1 else []
-        
         # Create server parameters
         server_params = StdioServerParameters(
-            command=command,
-            args=args
+            command=self.server_command[0],
+            args=self.server_command[1:],
         )
         
         # Start server and connect (keep contexts alive)
@@ -70,17 +91,34 @@ class MCPClient:
         tools_result = await self.session.list_tools()
         self.tools = tools_result if isinstance(tools_result, list) else tools_result.tools
         
-        print(f"✓ Connected to MCP server")
+        print("✓ Connected to MCP server")
         print(f"✓ Found {len(self.tools)} tools:")
         for tool in self.tools:
             print(f"  - {tool.name}")
     
-    async def close(self):
-        """Close the connection."""
-        if self._session_ctx:
-            await self._session_ctx.__aexit__(None, None, None)
-        if self._server_ctx:
-            await self._server_ctx.__aexit__(None, None, None)
+    async def close(self) -> None:
+        """
+        Close the session and shut the server subprocess down.
+
+        Safe to call more than once, and safe to call on a client that was
+        never connected.
+        """
+        # Detach first, so a failed teardown can't leave a half-closed context
+        # behind for a later call to trip over.
+        session_ctx, self._session_ctx = self._session_ctx, None
+        server_ctx, self._server_ctx = self._server_ctx, None
+        self.session = None
+        self._read = None
+        self._write = None
+
+        try:
+            if session_ctx is not None:
+                await session_ctx.__aexit__(None, None, None)
+        finally:
+            # Runs even if the session teardown raised, so the subprocess
+            # never outlives the client.
+            if server_ctx is not None:
+                await server_ctx.__aexit__(None, None, None)
     
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -98,60 +136,36 @@ class MCPClient:
         
         result = await self.session.call_tool(tool_name, arguments)
         
-        # Handle different MCP API versions
-        if isinstance(result, tuple):
-            # MCP v2 returns tuple (content, structured)
-            content, structured = result
-            return structured.get('result', {})
-        elif hasattr(result, 'structuredContent'):
-            # MCP v1 with camelCase
-            return result.structuredContent.get('result', {})
-        elif hasattr(result, 'structured_content'):
-            # MCP v1 with snake_case
-            return result.structured_content.get('result', {})
-        else:
-            # Fallback
-            return {}
+        # A failed call carries no structured payload, just a message saying
+        # what went wrong (unknown tool, bad arguments, an exception in the
+        # tool). Surface it instead of returning something empty.
+        if getattr(result, "is_error", False) or getattr(result, "isError", False):
+            raise MCPToolError(
+                f"{tool_name} failed: {_result_text(result) or 'no details given'}"
+            )
+        
+        # snake_case on current versions, camelCase on older ones.
+        structured = getattr(result, "structured_content", None)
+        if structured is None:
+            structured = getattr(result, "structuredContent", None)
+        
+        if not isinstance(structured, dict):
+            raise MCPToolError(
+                f"{tool_name} returned no structured result "
+                f"(got {type(structured).__name__}). "
+                f"Server said: {_result_text(result) or '<nothing>'}"
+            )
+        
+        # Tools wrap their payload under "result"; tolerate ones that don't.
+        payload = structured.get("result", structured)
+        return payload if isinstance(payload, dict) else {"result": payload}
 
 
-MODEL_ENV_VAR = "BENSPDF_MODEL"
-
-
-def resolve_model(requested: Optional[str], available: List[str]) -> str:
-    """
-    Pick which Ollama model to use.
-
-    Precedence: the requested model, then $BENSPDF_MODEL, then the first
-    model installed locally.
-
-    Args:
-        requested: Explicitly requested model, or None
-        available: Model names installed locally, as reported by Ollama
-
-    Returns:
-        The name of the model to use, including its tag
-
-    Raises:
-        ValueError: If nothing is installed, or the requested model isn't
-            among the installed ones.
-    """
-    if not available:
-        raise ValueError(
-            "No Ollama models installed. Pull one first, e.g.:\n"
-            "   ollama pull llama3.1"
-        )
-
-    choice = requested or os.environ.get(MODEL_ENV_VAR)
-    if choice is None:
-        return available[0]
-
-    # Accept both "llama3.1" and the fully tagged "llama3.1:latest".
-    for name in available:
-        if name == choice or name.split(":")[0] == choice:
-            return name
-
-    raise ValueError(
-        f"Model {choice!r} is not installed.\n"
-        f"   Available: {', '.join(available)}\n"
-        f"   Pull it with: ollama pull {choice}"
-    )
+def _result_text(result: Any) -> str:
+    """Pull the human-readable text out of a tool result, for error messages."""
+    parts = []
+    for block in getattr(result, "content", None) or []:
+        text = getattr(block, "text", None)
+        if text:
+            parts.append(text)
+    return "\n".join(parts).strip()

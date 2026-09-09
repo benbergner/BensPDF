@@ -131,10 +131,12 @@ ollama pull llama3.1
 Then run the bundled CLI:
 
 ```bash
-python mcp_cli.py                        # uses the first model you have
-python mcp_cli.py --model llama3.1       # or pick one
-BENSPDF_MODEL=llama3.1 python mcp_cli.py # or set it once
+benspdf-cli                        # uses the first model you have
+benspdf-cli --model llama3.1       # or pick one
+BENSPDF_MODEL=llama3.1 benspdf-cli # or set it once
 ```
+
+`python -m benspdf.cli` does the same thing, handy from a source checkout.
 
 ```
 You: how many pages in ~/Downloads/report.pdf?
@@ -219,6 +221,10 @@ pip install -e .
 
 python -m pytest tests/ -v
 ```
+
+The package is laid out as the server (`mcp_server.py`), a client that talks to
+it over stdio (`mcp_client.py`), the Ollama chat CLI built on that client
+(`cli.py`), and model selection (`models.py`).
 
 Adding a tool means writing a function and decorating it with `@mcp.tool()` in
 `src/benspdf/mcp_server.py`. Its type hints and docstring become the schema the

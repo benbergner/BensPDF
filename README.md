@@ -12,6 +12,20 @@ client, or fully offline with a local Ollama model.
 | --- | --- |
 | `count_pdf_pages` | Counts the pages in a PDF |
 | `create_test_pdf_file` | Generates a throwaway PDF, handy for trying things out |
+| `export` | Saves results to a real location on disk |
+| `list_artifacts` | Lists recent temporary results |
+| `discard` | Deletes temporary results now |
+
+## Where results go
+
+When a tool makes a new PDF, it goes into a scratch folder instead of your own
+folders, and you get back a short id like `art_a1b2c3d4.pdf`. Tools accept those
+ids anywhere they accept a file path, so several steps can be chained together.
+
+`export` is the only tool that writes into your folders, so nothing shows up
+until you ask for it. Each time the server starts it clears out scratch files
+older than 7 days. Set `BENSPDF_WORKSPACE` to put the scratch folder somewhere
+other than `~/.benspdf/work`.
 
 ## Setup
 
@@ -133,7 +147,8 @@ Assistant: The PDF has 12 pages.
 
 ### `count_pdf_pages(pdf_path)`
 
-Counts pages. `~` is expanded and relative paths are resolved.
+Counts pages. Accepts a file path (`~` is expanded, relative paths are resolved)
+or an artifact id from an earlier tool.
 
 ```python
 from benspdf import PDFPageCounterTool
@@ -157,10 +172,16 @@ can read the reason and recover:
 {'error': 'File not found: nope.pdf', 'file_path': '...', 'file_exists': False}
 ```
 
-### `create_test_pdf_file(output_path, num_pages=3, title=None)`
+### `create_test_pdf_file(output_path=None, num_pages=3, title=None)`
 
-Generates a PDF with numbered pages, so you can try the other tools without
-hunting for a file.
+Generates a PDF so you can try the other tools without hunting for a file. It
+stays in the scratch folder unless you give it `output_path`.
+
+```python
+{'success': True, 'artifact': 'art_55aceb59.pdf', 'num_pages': 3}
+```
+
+From Python, `create_test_pdf` writes straight to a path:
 
 ```python
 from benspdf import create_test_pdf
@@ -168,6 +189,23 @@ from benspdf import create_test_pdf
 create_test_pdf("demo.pdf", num_pages=5, title="Demo")
 # '/absolute/path/to/demo.pdf'
 ```
+
+### `export(refs, dest, name=None, overwrite=False)`
+
+Saves one or more results where you want them. For a single result, `dest` can be
+a full file path. For several, it's a folder, and `name` sets the filenames, e.g.
+`"page_{n:03d}{ext}"`.
+
+Existing files are never replaced unless you pass `overwrite=True`.
+
+### `list_artifacts(limit=20)`
+
+Recent scratch results, newest first, with their size and age.
+
+### `discard(refs)`
+
+Deletes scratch results now. Only takes ids, never file paths, so it can't remove
+your own files.
 
 ## Development
 
@@ -186,6 +224,15 @@ Adding a tool means writing a function and decorating it with `@mcp.tool()` in
 `src/benspdf/mcp_server.py`. Its type hints and docstring become the schema the
 model sees, so the docstring is worth writing carefully. Restart the server in
 your client afterwards to pick up the change.
+
+If a tool produces a file, use the helpers in `src/benspdf/core/` instead of
+writing to disk yourself:
+
+- `core.resolve(ref)` takes a file path or a scratch id and gives you a path to read
+- `core.save(data, ".pdf")` stores a result and returns its id
+- `core.ok(...)` and `core.err(...)` keep the result shape the same across tools
+
+`create_test_pdf_file` in `mcp_server.py` is a short working example.
 
 ## License
 

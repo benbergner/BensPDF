@@ -28,6 +28,7 @@ dependencies = [
 
 [project.scripts]
 benspdf-mcp = "benspdf.mcp_server:main"
+benspdf-cli = "benspdf.cli:main"
 
 [project.optional-dependencies]
 dev = [

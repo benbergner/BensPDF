@@ -3,6 +3,9 @@
 BensPDF MCP CLI - Chat with Ollama using MCP tools
 
 This provides a CLI interface that uses MCP protocol for tool access.
+
+Run it as `benspdf-cli` once the package is installed, or with
+`python -m benspdf.cli` from a source checkout.
 """
 
 import argparse
@@ -10,10 +13,10 @@ import asyncio
 import json
 import sys
 
-from benspdf.mcp_client import MODEL_ENV_VAR, resolve_model
+from benspdf.models import MODEL_ENV_VAR, resolve_model
 
 
-async def main(requested_model=None):
+async def run_chat(requested_model=None):
     print("=" * 70)
     print("BensPDF MCP CLI - Chat with Ollama + MCP Tools")
     print("=" * 70)
@@ -43,7 +46,7 @@ async def main(requested_model=None):
     print()
     
     # Import MCP client
-    from benspdf.mcp_client import MCPClient
+    from benspdf.mcp_client import MCPClient, MCPToolError
     
     # Connect to MCP server
     print("Connecting to MCP server...")
@@ -125,8 +128,13 @@ Be direct and helpful."""
                         
                         print(f"\n[Using tool: {tool_name}]")
                         
-                        # Execute tool via MCP
-                        result = await mcp_client.call_tool(tool_name, arguments)
+                        # Execute tool via MCP. A failed call is reported back
+                        # to the model rather than ending the turn, so it can
+                        # explain itself or try again.
+                        try:
+                            result = await mcp_client.call_tool(tool_name, arguments)
+                        except MCPToolError as e:
+                            result = {"success": False, "error": str(e)}
                         tool_results.append(result)
                         
                         if result.get("success") or "page_count" in result:
@@ -172,9 +180,11 @@ Be direct and helpful."""
                 import traceback
                 traceback.print_exc()
 
-if __name__ == "__main__":
+def main() -> None:
+    """Parse arguments and start the chat loop. Used by the console script."""
     parser = argparse.ArgumentParser(
-        description="Chat with a local Ollama model that can call BensPDF's MCP tools."
+        prog="benspdf-cli",
+        description="Chat with a local Ollama model that can call BensPDF's MCP tools.",
     )
     parser.add_argument(
         "--model",
@@ -184,4 +194,8 @@ if __name__ == "__main__":
         ),
     )
     args = parser.parse_args()
-    asyncio.run(main(args.model))
+    asyncio.run(run_chat(args.model))
+
+
+if __name__ == "__main__":
+    main()

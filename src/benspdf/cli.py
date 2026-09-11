@@ -54,7 +54,10 @@ async def run_chat(requested_model=None):
         print()
         print("Available tools:")
         for tool in mcp_client.tools:
-            print(f"  - {tool.name}: {tool.description.split(chr(10))[0]}")
+            # First line only, and stripped: a docstring that opens on the line
+            # after its quotes would otherwise print as blank.
+            summary = (tool.description or "").strip().splitlines()
+            print(f"  - {tool.name}: {summary[0] if summary else ''}")
         print()
         
         print("Commands:")

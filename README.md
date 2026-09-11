@@ -12,6 +12,7 @@ client, or fully offline with a local Ollama model.
 | --- | --- |
 | `pdf_page_count` | Counts the pages in a PDF |
 | `pdf_metadata` | Reads document properties: title, author, dates, producer |
+| `pdf_check_text` | Says whether a PDF is readable text or a scan that needs OCR |
 | `create_test_pdf_file` | Generates a throwaway PDF, handy for trying things out |
 | `export` | Saves results to a real location on disk |
 | `list_artifacts` | Lists recent temporary results |
@@ -210,6 +211,46 @@ read_metadata("~/Downloads/report.pdf")
 Dates come back as ISO 8601. Encrypted files say so rather than reporting an
 empty result.
 
+### `pdf_check_text(ref)`
+
+Whether you can read a PDF's text or need to OCR it first. Worth running before
+extracting text from a file you haven't seen.
+
+```python
+from benspdf import check_text
+
+check_text("~/Downloads/contract.pdf")
+```
+
+```python
+{'success': True,
+ 'verdict': 'scanned',            # or 'text', 'mixed', 'no_text'
+ 'needs_ocr': True,
+ 'has_text_layer': False,
+ 'summary': 'None of 5 pages examined yielded text, and 5 pages are covered by '
+            'a single image, so this looks like a scan and needs OCR before its '
+            'text can be read.',
+ 'page_count': 5,
+ 'sampled': False,
+ 'pages': [{'page': 1, 'characters': 0, 'images': 1, 'image_coverage': 1.0,
+            'has_text': False, 'looks_scanned': True}, ...],
+ 'producer': 'Canon iR-ADV C5550',
+ 'producer_suggests_scanner': True}
+```
+
+A page counts as scanned when one image covers most of it. That distinction
+matters: a brochure page with three photos and a heading has images and barely
+any text too, and it is not a scan. Coverage is measured from the page's
+transformation matrices, so no image data is decoded.
+
+Long documents are sampled — up to 10 pages spread across the file, ends
+included — which keeps a 2000-page scan as cheap as a short one and makes the
+answer an estimate. `sampled` tells you when that happened, and `pages` lists
+what was actually read.
+
+`text_excerpt` is there for the case a character count can't catch: text that
+exists but came out of OCR as gibberish.
+
 ### `create_test_pdf_file(output_path=None, num_pages=3, title=None)`
 
 Generates a PDF so you can try the other tools without hunting for a file. It
@@ -275,6 +316,12 @@ wrapper's type hints and docstring become the schema the model sees, so the
 docstring is worth writing carefully. `pdf_metadata` over `tools/metadata.py` is
 the pattern to copy. Restart the server in your client afterwards to pick up the
 change.
+
+Descriptions are context the model pays for on every turn, so keep them to what
+is specific to the tool: the question it answers, what it does not do and what to
+use instead, and any field whose name doesn't explain it. Skip the list of
+returned fields — results are self-describing dicts. Anything shared by all tools
+goes in `INSTRUCTIONS` in `mcp_server.py`, which the server sends once.
 
 If a tool produces a file, use the helpers in `src/benspdf/core/` instead of
 writing to disk yourself:

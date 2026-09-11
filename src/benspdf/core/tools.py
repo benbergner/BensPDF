@@ -47,13 +47,9 @@ def register(mcp: Any) -> None:
     ) -> Dict[str, Any]:
         """Save one or more results to a real location on disk.
 
-        This is the ONLY tool that writes to the user's filesystem. Every other
-        tool produces temporary workspace artifacts. Call this once, at the end,
-        when the user has said where they want the output.
-
-        Temporary artifacts expire, so anything the user wants to keep must be
-        exported. Never hand an artifact id back to the user as if it were a
-        finished file.
+        The only tool that writes to the user's filesystem, so call it once at the
+        end, when they have said where the output should go. Never hand an artifact
+        id back as if it were a finished file; artifacts expire.
 
         Args:
             refs: Artifact id, or list of artifact ids, to export.
@@ -66,9 +62,6 @@ def register(mcp: Any) -> None:
                 Defaults to "{n:03d}{ext}".
             overwrite: Replace existing files instead of failing. Defaults to
                 False so nothing is destroyed by accident.
-
-        Returns:
-            success, exported (list of written paths), count.
         """
         try:
             refs = _as_list(refs)
@@ -127,9 +120,6 @@ def register(mcp: Any) -> None:
 
         Args:
             limit: Maximum number of artifacts to return.
-
-        Returns:
-            success, artifacts (id, size_bytes, age_seconds), workspace path.
         """
         try:
             return ok(
@@ -149,9 +139,6 @@ def register(mcp: Any) -> None:
 
         Args:
             refs: Artifact id, or list of artifact ids, to delete.
-
-        Returns:
-            success, removed, skipped (ids that were not found or not artifacts).
         """
         try:
             result = store.discard(_as_list(refs))

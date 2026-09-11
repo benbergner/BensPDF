@@ -6,7 +6,7 @@ import pytest
 
 from benspdf import create_test_pdf, create_test_pdf_bytes
 from benspdf.core import store
-from benspdf.mcp_server import mcp
+from benspdf.mcp_server import INSTRUCTIONS, mcp
 
 EXPECTED_TOOLS = {
     # core
@@ -16,6 +16,7 @@ EXPECTED_TOOLS = {
     # pdf
     "pdf_page_count",
     "pdf_metadata",
+    "pdf_check_text",
     "create_test_pdf_file",
 }
 
@@ -28,6 +29,50 @@ class TestMCPServer:
         """Test that tools are registered."""
         tools = await mcp.list_tools()
         assert {t.name for t in tools} == EXPECTED_TOOLS
+
+
+class TestToolDescriptions:
+    """Descriptions are context the model pays for on every turn.
+
+    The contract shared by all tools is stated once in the server instructions,
+    so a description covers only what is specific to its tool. These guard that
+    split, which is otherwise easy to undo one helpful paragraph at a time.
+    """
+
+    #: Roughly 300 tokens. The longest description today is well under half this.
+    MAX_DESCRIPTION_CHARS = 1200
+
+    def test_instructions_carry_the_shared_contract(self):
+        assert "artifact" in INSTRUCTIONS, "how a ref works"
+        assert "success" in INSTRUCTIONS, "the result shape"
+        assert "export" in INSTRUCTIONS, "the only tool that writes to disk"
+
+    @pytest.mark.asyncio
+    async def test_descriptions_stay_lean(self):
+        for tool in await mcp.list_tools():
+            assert len(tool.description) <= self.MAX_DESCRIPTION_CHARS, (
+                f"{tool.name} description is {len(tool.description)} chars; move "
+                f"anything shared into the server instructions"
+            )
+
+    @pytest.mark.asyncio
+    async def test_descriptions_open_with_their_summary_line(self):
+        """A docstring opening on the line after its quotes reads as blank.
+
+        Clients and the bundled CLI show the first line as the tool's one line
+        purpose, so a leading newline costs the tool its label.
+        """
+        for tool in await mcp.list_tools():
+            first = tool.description.split("\n")[0]
+            assert first.strip(), f"{tool.name} has no summary line"
+            assert first == first.strip(), f"{tool.name} summary line is indented"
+
+    @pytest.mark.asyncio
+    async def test_descriptions_do_not_repeat_the_shared_contract(self):
+        """Seven copies of the result shape is six too many."""
+        for tool in await mcp.list_tools():
+            assert "success: True" not in tool.description, tool.name
+            assert "error: Error message" not in tool.description, tool.name
 
     @pytest.mark.asyncio
     async def test_pdf_page_count_tool(self, tmp_path, call_tool):
@@ -102,6 +147,47 @@ class TestPdfMetadataTool:
     @pytest.mark.asyncio
     async def test_expired_artifact_gives_actionable_error(self, call_tool):
         data = await call_tool(mcp, "pdf_metadata", {"ref": "art_deadbeef.pdf"})
+
+        assert data["success"] is False
+        assert "Re-run" in data["error"]
+
+
+class TestPdfCheckTextTool:
+    """pdf_check_text over the MCP boundary. The verdict logic and the page
+    sampling live in test_check_text.py; this covers the wiring."""
+
+    @pytest.mark.asyncio
+    async def test_reads_a_path(self, tmp_path, call_tool):
+        """Blank test pages have no text and no images, so: nothing to OCR."""
+        test_pdf = create_test_pdf(tmp_path / "blank.pdf", num_pages=3)
+
+        data = await call_tool(mcp, "pdf_check_text", {"ref": str(test_pdf)})
+
+        assert data["success"] is True
+        assert data["verdict"] == "no_text"
+        assert data["needs_ocr"] is False
+        assert data["pages_examined"] == 3
+        assert data["sampled"] is False
+
+    @pytest.mark.asyncio
+    async def test_accepts_an_artifact_id(self, call_tool):
+        artifact = store.save(create_test_pdf_bytes(num_pages=2), ".pdf")
+
+        data = await call_tool(mcp, "pdf_check_text", {"ref": artifact})
+
+        assert data["success"] is True
+        assert data["page_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_missing_file_reports_cleanly(self, call_tool):
+        data = await call_tool(mcp, "pdf_check_text", {"ref": "/nonexistent/file.pdf"})
+
+        assert data["success"] is False
+        assert data["file_exists"] is False
+
+    @pytest.mark.asyncio
+    async def test_expired_artifact_gives_actionable_error(self, call_tool):
+        data = await call_tool(mcp, "pdf_check_text", {"ref": "art_deadbeef.pdf"})
 
         assert data["success"] is False
         assert "Re-run" in data["error"]

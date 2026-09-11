@@ -8,6 +8,13 @@ Tools take a `ref`, which is either a path to one of the user's files or the id
 of a temporary workspace artifact produced by an earlier tool. Results stay in
 the workspace until `export` is called, so chained operations never litter the
 user's folders and nothing is written until they ask for it.
+
+That contract is stated once in `INSTRUCTIONS` below rather than in every tool
+description, since the descriptions are what a model pays for on every turn.
+Each tool then covers only what is specific to it: the question it answers, what
+it deliberately does not do, and any field whose meaning its name does not give
+away. Field lists are left out — results are dicts with self-describing keys, and
+the model reads them moments later anyway.
 """
 
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
@@ -15,7 +22,7 @@ from typing import Any, Dict, Optional
 
 from mcp.server import MCPServer
 
-from benspdf import PDFPageCounterTool, read_metadata
+from benspdf import PDFPageCounterTool, check_text, read_metadata
 from benspdf import core
 from benspdf.core import tools as core_tools
 from benspdf.tools.create_test_pdf import create_test_pdf_bytes
@@ -25,8 +32,27 @@ try:
 except PackageNotFoundError:  # running from a source checkout
     _VERSION = "0.0.0.dev0"
 
+#: The contract every tool shares, sent once with the server rather than repeated
+#: in seven descriptions. Each tool still calls its `ref` a path or artifact id,
+#: because not every client passes these instructions to the model, and that one
+#: fact is the only part a model cannot recover from a result.
+INSTRUCTIONS = """BensPDF reads and edits PDFs on the user's own machine. \
+Nothing is uploaded.
+
+Every tool follows the same contract:
+
+- A `ref` is either a path to one of the user's files (~ is expanded) or the id \
+of a workspace artifact from an earlier tool, like "art_a1b2c3d4.pdf". The two \
+are interchangeable, which is what lets tools be chained.
+- Results are dictionaries carrying `success`. On failure, `error` explains what \
+went wrong and usually what to do about it, so read it instead of retrying \
+blindly.
+- A tool that produces a file stores it as a temporary artifact and returns its \
+id. `export` is the only tool that writes into the user's folders, so nothing is \
+saved until it is called, and artifacts expire after a week."""
+
 # Create MCP server
-mcp = MCPServer("benspdf", version=_VERSION)
+mcp = MCPServer("benspdf", version=_VERSION, instructions=INSTRUCTIONS)
 
 # Register the shared core tools (export, list_artifacts, discard)
 core_tools.register(mcp)
@@ -37,24 +63,13 @@ pdf_counter = PDFPageCounterTool()
 
 @mcp.tool()
 def pdf_page_count(ref: str) -> Dict[str, Any]:
-    """
-    Count the pages in a PDF. Answers "how many pages is this?".
+    """Count the pages in a PDF. Answers "how many pages is this?".
 
     Reads only the document's page tree, so it stays cheap on large files. It
-    does not read page text, page sizes, or document metadata.
+    does not read page text, page sizes, or document properties.
 
     Args:
-        ref: Path to a PDF file (absolute or relative, ~ is expanded), or the id
-            of a workspace artifact from an earlier tool
-            (e.g. "art_a1b2c3d4.pdf")
-
-    Returns:
-        Dictionary with:
-        - page_count: Number of pages in the PDF
-        - file_name: Name of the PDF file
-        - file_path: Absolute path to the file
-        - success: True if successful
-        - error: Error message if failed
+        ref: PDF file path, or a workspace artifact id.
     """
     try:
         resolved = core.resolve(ref)
@@ -68,36 +83,21 @@ def pdf_page_count(ref: str) -> Dict[str, Any]:
 
 @mcp.tool()
 def pdf_metadata(ref: str) -> Dict[str, Any]:
-    """
-    Read a PDF's document properties: title, author, dates, producer, keywords.
+    """Read a PDF's document properties: title, author, dates, producer, keywords.
 
-    Answers "who made this, when, and with what". Use it for provenance and
-    identity questions. It does not count pages (use pdf_page_count) and it says
-    nothing about whether the pages contain extractable text.
+    Answers "who made this, when, and with what". It does not count pages (use
+    pdf_page_count) and says nothing about whether the pages hold readable text
+    (use pdf_check_text).
 
     A PDF can store these fields in two independent places, the legacy Info
-    dictionary and an XMP packet, and the two often disagree. Both are reported
-    verbatim under `info` and `xmp`, and `conflicts` names the fields where they
-    differ. The top level fields are the normalized answer, preferring XMP; check
-    `sources` to see which store each one came from. If `has_conflicts` is true,
-    say so rather than quoting one value as fact.
+    dictionary and an XMP packet, and the two often disagree. The normalized
+    answer is at the top level, preferring XMP, with `sources` naming the store
+    each value came from and `conflicts` listing every field where the two differ,
+    both values included. Both stores also come back verbatim as `info` and `xmp`.
+    When `has_conflicts` is true, say so rather than quoting one value as fact.
 
     Args:
-        ref: Path to a PDF file (absolute or relative, ~ is expanded), or the id
-            of a workspace artifact from an earlier tool
-            (e.g. "art_a1b2c3d4.pdf")
-
-    Returns:
-        Dictionary with:
-        - title, author, subject, producer, creator_tool: Strings, or null if absent
-        - keywords: List of keywords, empty if absent
-        - created, modified: ISO 8601 timestamps, or null if absent or unparseable
-        - sources: Which store each answer came from ("xmp", "info", or null)
-        - conflicts: Fields where the two stores disagree, with both values
-        - has_conflicts, has_info, has_xmp: Booleans
-        - info, xmp: The two stores, unmodified
-        - success: True if successful
-        - error: Error message if failed
+        ref: PDF file path, or a workspace artifact id.
     """
     try:
         resolved = core.resolve(ref)
@@ -110,29 +110,52 @@ def pdf_metadata(ref: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
+def pdf_check_text(ref: str) -> Dict[str, Any]:
+    """Check whether a PDF has a text layer, looks scanned, or needs OCR.
+
+    Answers "can I read this, or is it a picture of a document?". Worth running
+    before extracting text from a file you have not seen.
+
+    `verdict` is "text", "scanned", "mixed", or "no_text" — the last meaning
+    nothing readable but nothing scan-like either, so blank, vector-only, or
+    illustrated pages that OCR cannot help. `needs_ocr` follows from it, `summary`
+    is a sentence worth quoting, and the per page evidence behind the verdict
+    comes back alongside, including each page's `image_coverage` (the largest
+    image's share of the page area).
+
+    Samples up to 10 pages spread across the document, so a true `sampled` means
+    the answer is an estimate for the pages in between. It does not return the
+    text (use pdf_extract_text) and it does not run OCR.
+
+    Args:
+        ref: PDF file path, or a workspace artifact id.
+    """
+    try:
+        resolved = core.resolve(ref)
+    except core.ArtifactNotFound as exc:
+        return core.err(str(exc), file_exists=False)
+    except (FileNotFoundError, IsADirectoryError) as exc:
+        return core.err(str(exc), file_path=str(ref), file_exists=False)
+
+    return check_text(str(resolved))
+
+
+@mcp.tool()
 def create_test_pdf_file(
     output_path: Optional[str] = None,
     num_pages: int = 3,
     title: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Create a test PDF, handy for trying the other tools without hunting for a file.
+    """Create a test PDF, handy for trying the other tools without hunting for one.
 
-    By default the PDF is created as a temporary workspace artifact and its id is
-    returned, so it can be passed straight to another tool. Pass `output_path`
-    only if the user wants the file saved to a specific location.
+    The pages are blank, so this is for exercising tools rather than for anything
+    that needs real content.
 
     Args:
-        output_path: Optional path to also save the PDF to. Omit to keep it as a
+        output_path: Optional path to also write the PDF to. Omit to keep it as a
             temporary artifact.
-        num_pages: Number of pages to create (default: 3)
+        num_pages: Number of blank pages to create (default: 3)
         title: Optional title for the PDF metadata
-
-    Returns:
-        Dictionary with:
-        - artifact: Workspace artifact id for the new PDF
-        - num_pages: Number of pages created
-        - pdf_path: Absolute path, only present if output_path was given
     """
     try:
         data = create_test_pdf_bytes(num_pages=num_pages, title=title)

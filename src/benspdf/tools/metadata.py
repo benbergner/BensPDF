@@ -86,7 +86,8 @@ def read_metadata(pdf_path: str) -> Dict[str, Any]:
     except FileNotDecryptedError:
         return err(
             f"{path.name} is encrypted and needs a password, so its metadata "
-            f"cannot be read.",
+            f"cannot be read. pdf_check_access reports its encryption and "
+            f"permissions without opening it.",
             file_path=str(path),
             file_name=path.name,
             encrypted=True,

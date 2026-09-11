@@ -130,7 +130,8 @@ def check_text(pdf_path: str) -> Dict[str, Any]:
     except FileNotDecryptedError:
         return err(
             f"{path.name} is encrypted and needs a password, so its pages cannot "
-            f"be read.",
+            f"be read. pdf_check_access reports its encryption and permissions "
+            f"without opening it.",
             file_path=str(path),
             file_name=path.name,
             encrypted=True,

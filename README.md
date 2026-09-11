@@ -14,6 +14,7 @@ client, or fully offline with a local Ollama model.
 | `pdf_metadata` | Reads document properties: title, author, dates, producer |
 | `pdf_check_text` | Says whether a PDF is readable text or a scan that needs OCR |
 | `pdf_page_layout` | Page sizes, orientation, rotation and page boxes |
+| `pdf_check_access` | Encryption, and what the file permits: printing, copying, editing |
 | `create_test_pdf_file` | Generates a throwaway PDF, handy for trying things out |
 | `export` | Saves results to a real location on disk |
 | `list_artifacts` | Lists recent temporary results |
@@ -251,6 +252,55 @@ what was actually read.
 
 `text_excerpt` is there for the case a character count can't catch: text that
 exists but came out of OCR as gibberish.
+
+### `pdf_check_access(ref)`
+
+Encryption and permissions, which are one question rather than two: a PDF has
+nowhere to keep restrictions except inside its encryption dictionary, so an
+unencrypted file cannot forbid anything.
+
+```python
+from benspdf import check_access
+
+check_access("~/Downloads/contract.pdf")
+```
+
+```python
+{'success': True,
+ 'encrypted': True,
+ 'needs_password': False,
+ 'restricted': True,
+ 'restrictions': ['modify', 'annotate', 'fill_forms', 'assemble'],
+ 'permissions': {'print': True, 'print_high_quality': True, 'copy': True,
+                 'modify': False, 'annotate': False, 'fill_forms': False,
+                 'assemble': False, 'accessibility': True},
+ 'permissions_valid': None,
+ 'encryption': {'algorithm': 'AES-128', 'version': 4, 'revision': 4,
+                'key_bits': 128, 'encrypts_metadata': True},
+ 'summary': 'Encrypted with AES-128, but it opens without a password. It asks '
+            'viewers to disallow editing the content, annotating, filling in '
+            'forms and reorganizing pages. Those bits are a request to viewers, '
+            'not a lock: the file is already open, so nothing enforces them.'}
+```
+
+`encrypted` and `needs_password` are deliberately separate. Encryption sounds like
+a locked door, and usually isn't one: of 141 files here, 8 were encrypted and none
+needed a password. They open silently and simply carry restrictions.
+
+Those restrictions are a request to viewers, not a lock. Six of those 8 files
+declare that text may not be copied, and `pdf_check_text` reads their text without
+resistance. So the summary states the restriction and its advisory nature
+together, and it's worth passing that on rather than telling someone an action is
+impossible.
+
+`permissions_valid` is `None` unless there was a real check to run. Only AES-256
+stores a signed copy of the permission bits; pypdf reports `True` for weaker
+encryption, meaning "nothing to verify", which is not the same as verified.
+
+This is also the one tool that still answers for a password-protected file. The
+encryption dictionary isn't itself encrypted, so permissions are readable even
+when the pages aren't — where the other tools can only report the encryption and
+stop.
 
 ### `pdf_page_layout(ref, pages=None)`
 

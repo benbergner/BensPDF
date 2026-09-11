@@ -9,6 +9,8 @@ __pycache__/
 # PDF files (generated for testing)
 *.pdf
 
+docs/
+
 # Distribution / packaging
 .Python
 build/

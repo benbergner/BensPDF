@@ -15,6 +15,7 @@ EXPECTED_TOOLS = {
     "discard",
     # pdf
     "pdf_page_count",
+    "pdf_metadata",
     "create_test_pdf_file",
 }
 
@@ -51,9 +52,7 @@ class TestMCPServer:
     @pytest.mark.asyncio
     async def test_pdf_page_count_error_handling(self, call_tool):
         """Test error handling in MCP tool."""
-        data = await call_tool(
-            mcp, "pdf_page_count", {"ref": "/nonexistent/file.pdf"}
-        )
+        data = await call_tool(mcp, "pdf_page_count", {"ref": "/nonexistent/file.pdf"})
 
         assert "error" in data
         assert data["file_exists"] is False
@@ -62,6 +61,47 @@ class TestMCPServer:
     async def test_expired_artifact_gives_actionable_error(self, call_tool):
         """An expired id should tell the model to re-run, not just fail."""
         data = await call_tool(mcp, "pdf_page_count", {"ref": "art_deadbeef.pdf"})
+
+        assert data["success"] is False
+        assert "Re-run" in data["error"]
+
+
+class TestPdfMetadataTool:
+    """pdf_metadata over the MCP boundary. Field level behaviour is in
+    test_metadata.py; this covers the wiring."""
+
+    @pytest.mark.asyncio
+    async def test_reads_metadata_from_a_path(self, tmp_path, call_tool):
+        test_pdf = create_test_pdf(tmp_path / "titled.pdf", title="Annual Report")
+
+        data = await call_tool(mcp, "pdf_metadata", {"ref": str(test_pdf)})
+
+        assert data["success"] is True
+        assert data["title"] == "Annual Report"
+        assert data["producer"] == "BensPDF Test Utility"
+        assert data["sources"]["title"] == "info"
+
+    @pytest.mark.asyncio
+    async def test_accepts_an_artifact_id(self, call_tool):
+        artifact = store.save(
+            create_test_pdf_bytes(num_pages=2, title="From Id"), ".pdf"
+        )
+
+        data = await call_tool(mcp, "pdf_metadata", {"ref": artifact})
+
+        assert data["success"] is True
+        assert data["title"] == "From Id"
+
+    @pytest.mark.asyncio
+    async def test_missing_file_reports_cleanly(self, call_tool):
+        data = await call_tool(mcp, "pdf_metadata", {"ref": "/nonexistent/file.pdf"})
+
+        assert data["success"] is False
+        assert data["file_exists"] is False
+
+    @pytest.mark.asyncio
+    async def test_expired_artifact_gives_actionable_error(self, call_tool):
+        data = await call_tool(mcp, "pdf_metadata", {"ref": "art_deadbeef.pdf"})
 
         assert data["success"] is False
         assert "Re-run" in data["error"]
@@ -76,7 +116,9 @@ class TestCreateTestPdfTool:
 
         assert data["success"] is True
         assert store.is_artifact(data["artifact"])
-        assert "pdf_path" not in data, "nothing should be written without an output_path"
+        assert (
+            "pdf_path" not in data
+        ), "nothing should be written without an output_path"
 
     @pytest.mark.asyncio
     async def test_also_writes_when_given_a_path(self, tmp_path, call_tool):
@@ -103,9 +145,7 @@ class TestExportTool:
         artifact = store.save(b"%PDF-1.4", ".pdf")
         dest = tmp_path / "out" / "final.pdf"
 
-        data = await call_tool(
-            mcp, "export", {"refs": [artifact], "dest": str(dest)}
-        )
+        data = await call_tool(mcp, "export", {"refs": [artifact], "dest": str(dest)})
 
         assert data["success"] is True
         assert data["count"] == 1
@@ -147,9 +187,7 @@ class TestExportTool:
         dest = tmp_path / "existing.pdf"
         dest.write_bytes(b"original")
 
-        data = await call_tool(
-            mcp, "export", {"refs": [artifact], "dest": str(dest)}
-        )
+        data = await call_tool(mcp, "export", {"refs": [artifact], "dest": str(dest)})
 
         assert data["success"] is False
         assert "overwrite=True" in data["error"]

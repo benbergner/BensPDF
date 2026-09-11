@@ -1,7 +1,7 @@
 """
-PDF Page Counter Tool
+Counting the pages in a PDF: the implementation behind `pdf_page_count`.
 
-A simple, extensible PDF page counter.
+Reads the document's page tree only, so it stays cheap on large files.
 Processes PDFs locally - no external APIs needed.
 """
 

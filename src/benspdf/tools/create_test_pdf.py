@@ -1,5 +1,10 @@
 """
-Utility functions for BensPDF
+Generating a throwaway PDF: the implementation behind `create_test_pdf_file`.
+
+Exists so the other tools can be tried without hunting for a real file. The
+`_bytes` variant is what the MCP tool uses, since it stores the result as a
+workspace artifact rather than writing to the user's disk; the path variant is a
+convenience for Python callers and for the test suite.
 """
 
 import io

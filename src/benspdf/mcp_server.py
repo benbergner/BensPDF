@@ -15,10 +15,10 @@ from typing import Any, Dict, Optional
 
 from mcp.server import MCPServer
 
-from benspdf import PDFPageCounterTool
+from benspdf import PDFPageCounterTool, read_metadata
 from benspdf import core
 from benspdf.core import tools as core_tools
-from benspdf.utils import create_test_pdf_bytes
+from benspdf.tools.create_test_pdf import create_test_pdf_bytes
 
 try:
     _VERSION = _pkg_version("benspdf-mcp")
@@ -64,6 +64,49 @@ def pdf_page_count(ref: str) -> Dict[str, Any]:
         return core.err(str(exc), file_path=str(ref), file_exists=False)
 
     return pdf_counter.count_pages(str(resolved))
+
+
+@mcp.tool()
+def pdf_metadata(ref: str) -> Dict[str, Any]:
+    """
+    Read a PDF's document properties: title, author, dates, producer, keywords.
+
+    Answers "who made this, when, and with what". Use it for provenance and
+    identity questions. It does not count pages (use pdf_page_count) and it says
+    nothing about whether the pages contain extractable text.
+
+    A PDF can store these fields in two independent places, the legacy Info
+    dictionary and an XMP packet, and the two often disagree. Both are reported
+    verbatim under `info` and `xmp`, and `conflicts` names the fields where they
+    differ. The top level fields are the normalized answer, preferring XMP; check
+    `sources` to see which store each one came from. If `has_conflicts` is true,
+    say so rather than quoting one value as fact.
+
+    Args:
+        ref: Path to a PDF file (absolute or relative, ~ is expanded), or the id
+            of a workspace artifact from an earlier tool
+            (e.g. "art_a1b2c3d4.pdf")
+
+    Returns:
+        Dictionary with:
+        - title, author, subject, producer, creator_tool: Strings, or null if absent
+        - keywords: List of keywords, empty if absent
+        - created, modified: ISO 8601 timestamps, or null if absent or unparseable
+        - sources: Which store each answer came from ("xmp", "info", or null)
+        - conflicts: Fields where the two stores disagree, with both values
+        - has_conflicts, has_info, has_xmp: Booleans
+        - info, xmp: The two stores, unmodified
+        - success: True if successful
+        - error: Error message if failed
+    """
+    try:
+        resolved = core.resolve(ref)
+    except core.ArtifactNotFound as exc:
+        return core.err(str(exc), file_exists=False)
+    except (FileNotFoundError, IsADirectoryError) as exc:
+        return core.err(str(exc), file_path=str(ref), file_exists=False)
+
+    return read_metadata(str(resolved))
 
 
 @mcp.tool()

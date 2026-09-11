@@ -23,13 +23,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pypdf import PdfReader
-from pypdf.errors import FileNotDecryptedError, PdfReadError
+from pypdf.errors import FileNotDecryptedError
 
 from ..core import err, ok
 
-#: Malformed PDFs raise a wide range of these while poking at individual fields.
-#: One bad date should cost that date, not the whole result.
-_PDF_ERRORS = (PdfReadError, ValueError, KeyError, TypeError, AttributeError)
+#: Malformed PDFs raise almost anything while poking at individual fields, so this
+#: catches broadly on purpose: one bad date should cost that date, not the whole
+#: result. Listing expected types instead let pypdf errors outside the
+#: ``PdfReadError`` branch of its hierarchy — ``LimitReachedError``,
+#: ``DependencyError`` — escape as tracebacks.
+_PDF_ERRORS = Exception
 
 #: Normalized field names, in the order a person would read them.
 _FIELDS = (
@@ -88,9 +91,9 @@ def read_metadata(pdf_path: str) -> Dict[str, Any]:
             file_name=path.name,
             encrypted=True,
         )
-    except (PdfReadError, OSError, ValueError) as exc:
+    except Exception as exc:  # noqa: BLE001 - return a reason, never raise
         return err(
-            f"Could not read {path.name} as a PDF: {exc}",
+            f"Could not read {path.name} as a PDF: {type(exc).__name__}: {exc}",
             file_path=str(path),
             file_name=path.name,
         )

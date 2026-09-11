@@ -36,16 +36,16 @@ pdf_counter = PDFPageCounterTool()
 
 
 @mcp.tool()
-def count_pdf_pages(pdf_path: str) -> Dict[str, Any]:
+def pdf_page_count(ref: str) -> Dict[str, Any]:
     """
-    Count the number of pages in a PDF document.
+    Count the pages in a PDF. Answers "how many pages is this?".
 
-    Use this tool when the user asks about the number of pages in a PDF file.
-    The tool returns the exact page count and file information.
+    Reads only the document's page tree, so it stays cheap on large files. It
+    does not read page text, page sizes, or document metadata.
 
     Args:
-        pdf_path: Path to a PDF file (absolute or relative, ~ is expanded), or
-            the id of a workspace artifact from an earlier tool
+        ref: Path to a PDF file (absolute or relative, ~ is expanded), or the id
+            of a workspace artifact from an earlier tool
             (e.g. "art_a1b2c3d4.pdf")
 
     Returns:
@@ -57,11 +57,11 @@ def count_pdf_pages(pdf_path: str) -> Dict[str, Any]:
         - error: Error message if failed
     """
     try:
-        resolved = core.resolve(pdf_path)
+        resolved = core.resolve(ref)
     except core.ArtifactNotFound as exc:
         return core.err(str(exc), file_exists=False)
     except (FileNotFoundError, IsADirectoryError) as exc:
-        return core.err(str(exc), file_path=str(pdf_path), file_exists=False)
+        return core.err(str(exc), file_path=str(ref), file_exists=False)
 
     return pdf_counter.count_pages(str(resolved))
 

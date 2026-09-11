@@ -14,7 +14,7 @@ EXPECTED_TOOLS = {
     "list_artifacts",
     "discard",
     # pdf
-    "count_pdf_pages",
+    "pdf_page_count",
     "create_test_pdf_file",
 }
 
@@ -29,30 +29,30 @@ class TestMCPServer:
         assert {t.name for t in tools} == EXPECTED_TOOLS
 
     @pytest.mark.asyncio
-    async def test_count_pdf_pages_tool(self, tmp_path, call_tool):
+    async def test_pdf_page_count_tool(self, tmp_path, call_tool):
         """Test counting pages via MCP tool."""
         test_pdf = create_test_pdf(tmp_path / "test.pdf", num_pages=5)
 
-        data = await call_tool(mcp, "count_pdf_pages", {"pdf_path": str(test_pdf)})
+        data = await call_tool(mcp, "pdf_page_count", {"ref": str(test_pdf)})
 
         assert data["page_count"] == 5
         assert data["success"] is True
 
     @pytest.mark.asyncio
-    async def test_count_pdf_pages_accepts_an_artifact_id(self, call_tool):
+    async def test_pdf_page_count_accepts_an_artifact_id(self, call_tool):
         """A workspace artifact id works anywhere a path does."""
         artifact = store.save(create_test_pdf_bytes(num_pages=4), ".pdf")
 
-        data = await call_tool(mcp, "count_pdf_pages", {"pdf_path": artifact})
+        data = await call_tool(mcp, "pdf_page_count", {"ref": artifact})
 
         assert data["success"] is True
         assert data["page_count"] == 4
 
     @pytest.mark.asyncio
-    async def test_count_pdf_pages_error_handling(self, call_tool):
+    async def test_pdf_page_count_error_handling(self, call_tool):
         """Test error handling in MCP tool."""
         data = await call_tool(
-            mcp, "count_pdf_pages", {"pdf_path": "/nonexistent/file.pdf"}
+            mcp, "pdf_page_count", {"ref": "/nonexistent/file.pdf"}
         )
 
         assert "error" in data
@@ -61,7 +61,7 @@ class TestMCPServer:
     @pytest.mark.asyncio
     async def test_expired_artifact_gives_actionable_error(self, call_tool):
         """An expired id should tell the model to re-run, not just fail."""
-        data = await call_tool(mcp, "count_pdf_pages", {"pdf_path": "art_deadbeef.pdf"})
+        data = await call_tool(mcp, "pdf_page_count", {"ref": "art_deadbeef.pdf"})
 
         assert data["success"] is False
         assert "Re-run" in data["error"]
@@ -240,7 +240,7 @@ class TestChaining:
         created = await call_tool(mcp, "create_test_pdf_file", {"num_pages": 6})
         artifact = created["artifact"]
 
-        counted = await call_tool(mcp, "count_pdf_pages", {"pdf_path": artifact})
+        counted = await call_tool(mcp, "pdf_page_count", {"ref": artifact})
         assert counted["page_count"] == 6
 
         dest = tmp_path / "kept.pdf"

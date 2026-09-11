@@ -10,7 +10,7 @@ client, or fully offline with a local Ollama model.
 
 | Tool | What it does |
 | --- | --- |
-| `count_pdf_pages` | Counts the pages in a PDF |
+| `pdf_page_count` | Counts the pages in a PDF |
 | `create_test_pdf_file` | Generates a throwaway PDF, handy for trying things out |
 | `export` | Saves results to a real location on disk |
 | `list_artifacts` | Lists recent temporary results |
@@ -95,7 +95,7 @@ trust.
     "benspdf": {
       "command": "uvx",
       "args": ["benspdf-mcp"],
-      "autoApprove": ["count_pdf_pages"]
+      "autoApprove": ["pdf_page_count"]
     }
   }
 }
@@ -140,14 +140,14 @@ BENSPDF_MODEL=llama3.1 benspdf-cli # or set it once
 
 ```
 You: how many pages in ~/Downloads/report.pdf?
-[Using tool: count_pdf_pages]
+[Using tool: pdf_page_count]
 [Result: 12 pages in report.pdf]
 Assistant: The PDF has 12 pages.
 ```
 
 ## The tools in detail
 
-### `count_pdf_pages(pdf_path)`
+### `pdf_page_count(ref)`
 
 Counts pages. Accepts a file path (`~` is expanded, relative paths are resolved)
 or an artifact id from an earlier tool.

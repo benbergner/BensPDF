@@ -87,7 +87,7 @@ async def run_chat(requested_model=None):
 
 For example:
 - User: "How many pages in file.pdf?"
-- You: [Use count_pdf_pages tool]
+- You: [Use pdf_page_count tool]
 - You: "The PDF file.pdf has X pages."
 
 Be direct and helpful."""

@@ -11,6 +11,7 @@ client, or fully offline with a local Ollama model.
 | Tool | What it does |
 | --- | --- |
 | `pdf_page_count` | Counts the pages in a PDF |
+| `pdf_metadata` | Reads document properties: title, author, dates, producer |
 | `create_test_pdf_file` | Generates a throwaway PDF, handy for trying things out |
 | `export` | Saves results to a real location on disk |
 | `list_artifacts` | Lists recent temporary results |
@@ -174,6 +175,41 @@ can read the reason and recover:
 {'error': 'File not found: nope.pdf', 'file_path': '...', 'file_exists': False}
 ```
 
+### `pdf_metadata(ref)`
+
+Document properties: title, author, subject, keywords, producer, and dates.
+
+A PDF can keep these in two independent places — the old Info dictionary and an
+XMP packet — and they often disagree, because files pass through tools that
+update one and leave the other stale. So this doesn't merge them. You get a
+normalized answer at the top level, `sources` saying which store each value came
+from, and `conflicts` listing any field where the two differ, with both values.
+Both stores are also returned untouched as `info` and `xmp`.
+
+```python
+from benspdf import read_metadata
+
+read_metadata("~/Downloads/report.pdf")
+```
+
+```python
+{'success': True,
+ 'title': 'The Real Title',        # XMP wins when both are present
+ 'author': 'Ada Lovelace',
+ 'keywords': ['finance', 'q3'],
+ 'producer': 'Acrobat',
+ 'created': '2024-01-15T10:30:00+01:00',
+ 'modified': '2026-03-01T12:00:00+00:00',
+ 'sources': {'title': 'xmp', 'author': 'info', ...},
+ 'conflicts': {'title': {'info': 'Stale Title', 'xmp': 'The Real Title'}},
+ 'has_conflicts': True,
+ 'info': {'/Title': 'Stale Title', ...},
+ 'xmp': {'dc_title': {'x-default': 'The Real Title'}, ...}}
+```
+
+Dates come back as ISO 8601. Encrypted files say so rather than reporting an
+empty result.
+
 ### `create_test_pdf_file(output_path=None, num_pages=3, title=None)`
 
 Generates a PDF so you can try the other tools without hunting for a file. It
@@ -222,14 +258,23 @@ pip install -e .
 python -m pytest tests/ -v
 ```
 
-The package is laid out as the server (`mcp_server.py`), a client that talks to
-it over stdio (`mcp_client.py`), the Ollama chat CLI built on that client
+The package is laid out as the server (`mcp_server.py`), one module per tool
+under `tools/`, the shared artifact layer (`core/`), a client that talks to the
+server over stdio (`mcp_client.py`), the Ollama chat CLI built on that client
 (`cli.py`), and model selection (`models.py`).
 
-Adding a tool means writing a function and decorating it with `@mcp.tool()` in
-`src/benspdf/mcp_server.py`. Its type hints and docstring become the schema the
-model sees, so the docstring is worth writing carefully. Restart the server in
-your client afterwards to pick up the change.
+Adding a tool means two things:
+
+1. The logic goes in `src/benspdf/tools/<verb>.py`, named after the verb, and its
+   public name gets listed in `src/benspdf/__init__.py`.
+2. A thin wrapper in `src/benspdf/mcp_server.py`, decorated with `@mcp.tool()`,
+   resolves the `ref` and calls it.
+
+Keeping those separate means the logic is testable without going through MCP. The
+wrapper's type hints and docstring become the schema the model sees, so the
+docstring is worth writing carefully. `pdf_metadata` over `tools/metadata.py` is
+the pattern to copy. Restart the server in your client afterwards to pick up the
+change.
 
 If a tool produces a file, use the helpers in `src/benspdf/core/` instead of
 writing to disk yourself:

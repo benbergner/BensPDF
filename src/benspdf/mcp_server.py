@@ -22,7 +22,13 @@ from typing import Any, Dict, Optional
 
 from mcp.server import MCPServer
 
-from benspdf import PDFPageCounterTool, check_text, read_metadata, read_page_layout
+from benspdf import (
+    PDFPageCounterTool,
+    check_access,
+    check_text,
+    read_metadata,
+    read_page_layout,
+)
 from benspdf import core
 from benspdf.core import tools as core_tools
 from benspdf.tools.create_test_pdf import create_test_pdf_bytes
@@ -138,6 +144,41 @@ def pdf_check_text(ref: str) -> Dict[str, Any]:
         return core.err(str(exc), file_path=str(ref), file_exists=False)
 
     return check_text(str(resolved))
+
+
+@mcp.tool()
+def pdf_check_access(ref: str) -> Dict[str, Any]:
+    """Check a PDF's encryption and what it permits: printing, copying, editing.
+
+    Answers "is this locked, and what am I allowed to do with it?".
+
+    `encrypted` and `needs_password` are separate answers and the difference
+    matters: most encrypted files have no user password, so they open silently and
+    only carry restrictions. `permissions` gives a boolean per action,
+    `restrictions` lists what is denied, and an unencrypted file permits
+    everything — a PDF has nowhere to keep restrictions but its encryption
+    dictionary.
+
+    Treat restrictions as what the file asks of viewers, not as enforcement: once a
+    document is open nothing stops the bits being ignored, and a file that denies
+    copying still yields its text to pdf_extract_text. Report them as the author's
+    intent, never as an action being impossible.
+
+    Worth reaching for when another tool reports a file as encrypted; this one
+    still answers, since the encryption dictionary is readable when the pages are
+    not.
+
+    Args:
+        ref: PDF file path, or a workspace artifact id.
+    """
+    try:
+        resolved = core.resolve(ref)
+    except core.ArtifactNotFound as exc:
+        return core.err(str(exc), file_exists=False)
+    except (FileNotFoundError, IsADirectoryError) as exc:
+        return core.err(str(exc), file_path=str(ref), file_exists=False)
+
+    return check_access(str(resolved))
 
 
 @mcp.tool()

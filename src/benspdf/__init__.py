@@ -5,6 +5,7 @@ Framework-agnostic PDF processing tools that work with MCP protocol.
 """
 
 from . import core
+from .tools.check_access import check_access
 from .tools.check_text import check_text
 from .tools.create_test_pdf import create_test_pdf, create_test_pdf_bytes
 from .tools.metadata import read_metadata
@@ -17,6 +18,7 @@ __all__ = [
     "create_tool",
     "read_metadata",
     "check_text",
+    "check_access",
     "read_page_layout",
     "create_test_pdf",
     "create_test_pdf_bytes",

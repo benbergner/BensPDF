@@ -103,7 +103,8 @@ def read_page_layout(pdf_path: str, pages: Optional[str] = None) -> Dict[str, An
     except FileNotDecryptedError:
         return err(
             f"{path.name} is encrypted and needs a password, so its pages cannot "
-            f"be measured.",
+            f"be measured. pdf_check_access reports its encryption and permissions "
+            f"without opening it.",
             file_path=str(path),
             file_name=path.name,
             encrypted=True,

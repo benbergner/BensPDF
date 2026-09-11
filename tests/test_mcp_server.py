@@ -1,8 +1,10 @@
 """Tests for MCP server functionality."""
 
+import io
 from pathlib import Path
 
 import pytest
+from pypdf import PdfWriter
 
 from benspdf import create_test_pdf, create_test_pdf_bytes
 from benspdf.core import store
@@ -17,6 +19,7 @@ EXPECTED_TOOLS = {
     "pdf_page_count",
     "pdf_metadata",
     "pdf_check_text",
+    "pdf_check_access",
     "pdf_page_layout",
     "create_test_pdf_file",
 }
@@ -192,6 +195,56 @@ class TestPdfCheckTextTool:
 
         assert data["success"] is False
         assert "Re-run" in data["error"]
+
+
+class TestPdfCheckAccessTool:
+    """pdf_check_access over the MCP boundary. Encryption detail lives in
+    test_check_access.py; this covers the wiring."""
+
+    @pytest.mark.asyncio
+    async def test_reads_an_unencrypted_file(self, tmp_path, call_tool):
+        test_pdf = create_test_pdf(tmp_path / "plain.pdf", num_pages=2)
+
+        data = await call_tool(mcp, "pdf_check_access", {"ref": str(test_pdf)})
+
+        assert data["success"] is True
+        assert data["encrypted"] is False
+        assert data["restricted"] is False
+        assert all(data["permissions"].values())
+
+    @pytest.mark.asyncio
+    async def test_an_encrypted_file_is_an_answer_not_an_error(
+        self, tmp_path, call_tool
+    ):
+        """Every other tool fails on these; this one is the reason why."""
+        writer = PdfWriter()
+        writer.add_blank_page(width=612, height=792)
+        writer.encrypt(user_password="letmein", owner_password="owner")
+        buffer = io.BytesIO()
+        writer.write(buffer)
+        locked = tmp_path / "locked.pdf"
+        locked.write_bytes(buffer.getvalue())
+
+        data = await call_tool(mcp, "pdf_check_access", {"ref": str(locked)})
+
+        assert data["success"] is True
+        assert data["encrypted"] is True
+        assert data["needs_password"] is True
+
+    @pytest.mark.asyncio
+    async def test_accepts_an_artifact_id(self, call_tool):
+        artifact = store.save(create_test_pdf_bytes(num_pages=1), ".pdf")
+
+        data = await call_tool(mcp, "pdf_check_access", {"ref": artifact})
+
+        assert data["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_missing_file_reports_cleanly(self, call_tool):
+        data = await call_tool(mcp, "pdf_check_access", {"ref": "/nonexistent/f.pdf"})
+
+        assert data["success"] is False
+        assert data["file_exists"] is False
 
 
 class TestPdfPageLayoutTool:

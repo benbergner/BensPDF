@@ -9,6 +9,7 @@ from .tools.check_text import check_text
 from .tools.create_test_pdf import create_test_pdf, create_test_pdf_bytes
 from .tools.metadata import read_metadata
 from .tools.page_count import PDFPageCounterTool, create_tool
+from .tools.page_layout import read_page_layout
 
 __all__ = [
     # Tools, one module each under benspdf.tools
@@ -16,6 +17,7 @@ __all__ = [
     "create_tool",
     "read_metadata",
     "check_text",
+    "read_page_layout",
     "create_test_pdf",
     "create_test_pdf_bytes",
     # Shared artifact layer

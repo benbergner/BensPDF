@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional
 
 from mcp.server import MCPServer
 
-from benspdf import PDFPageCounterTool, check_text, read_metadata
+from benspdf import PDFPageCounterTool, check_text, read_metadata, read_page_layout
 from benspdf import core
 from benspdf.core import tools as core_tools
 from benspdf.tools.create_test_pdf import create_test_pdf_bytes
@@ -138,6 +138,41 @@ def pdf_check_text(ref: str) -> Dict[str, Any]:
         return core.err(str(exc), file_path=str(ref), file_exists=False)
 
     return check_text(str(resolved))
+
+
+@mcp.tool()
+def pdf_page_layout(ref: str, pages: Optional[str] = None) -> Dict[str, Any]:
+    """Measure a PDF's page sizes, orientation and rotation.
+
+    Answers "what size is this, is it all the same, and why does one page come out
+    sideways?". Reads page geometry only, so it stays cheap on long documents.
+
+    `sizes` groups the pages by shape, most pages first, each carrying the page
+    numbers it covers as a range like "1-16,18", so a 300 page document answers in
+    one entry instead of 300 rows.
+    Sizes are the page as a reader sees it: CropBox clipped to MediaBox with
+    `/Rotate` applied, so a landscape box rotated 90 degrees reports as portrait.
+    Pages within 3pt of a known paper are grouped and named together, since real A4
+    varies by a millimetre.
+
+    Pass `pages` for per page rows carrying the raw boxes: "1-20", "3", "1,5,9-12"
+    or "all", capped at 100 rows.
+
+    It does not look at page content; for whether the pages hold readable text use
+    pdf_check_text.
+
+    Args:
+        ref: PDF file path, or a workspace artifact id.
+        pages: Optional page range for per page detail. Omit for groups only.
+    """
+    try:
+        resolved = core.resolve(ref)
+    except core.ArtifactNotFound as exc:
+        return core.err(str(exc), file_exists=False)
+    except (FileNotFoundError, IsADirectoryError) as exc:
+        return core.err(str(exc), file_path=str(ref), file_exists=False)
+
+    return read_page_layout(str(resolved), pages)
 
 
 @mcp.tool()

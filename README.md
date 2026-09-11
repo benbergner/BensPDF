@@ -13,6 +13,7 @@ client, or fully offline with a local Ollama model.
 | `pdf_page_count` | Counts the pages in a PDF |
 | `pdf_metadata` | Reads document properties: title, author, dates, producer |
 | `pdf_check_text` | Says whether a PDF is readable text or a scan that needs OCR |
+| `pdf_page_layout` | Page sizes, orientation, rotation and page boxes |
 | `create_test_pdf_file` | Generates a throwaway PDF, handy for trying things out |
 | `export` | Saves results to a real location on disk |
 | `list_artifacts` | Lists recent temporary results |
@@ -250,6 +251,54 @@ what was actually read.
 
 `text_excerpt` is there for the case a character count can't catch: text that
 exists but came out of OCR as gibberish.
+
+### `pdf_page_layout(ref, pages=None)`
+
+Page sizes, orientation, rotation and the page boxes.
+
+```python
+from benspdf import read_page_layout
+
+read_page_layout("~/Downloads/thesis.pdf")
+```
+
+```python
+{'success': True,
+ 'page_count': 213,
+ 'uniform': False,
+ 'summary': 'Page sizes vary: 211 pages are A4 portrait and 2 pages are A4 '
+            'landscape, rotated 90°. The most common is 595.3 x 841.9 pt, '
+            '210 x 297 mm.',
+ 'sizes': [{'paper': 'A4', 'orientation': 'portrait', 'rotation': 0,
+            'width_pt': 595.3, 'height_pt': 841.9,
+            'width_mm': 210.0, 'height_mm': 297.0,
+            'width_in': 8.27, 'height_in': 11.69,
+            'page_count': 211, 'pages': '1-211', 'exact_sizes_vary': False},
+           {'paper': 'A4', 'orientation': 'landscape', 'rotation': 90, ...}],
+ 'has_print_boxes': False}
+```
+
+Pages are grouped by shape rather than listed one by one, so a 300-page document
+answers in one entry and each group carries its page numbers as a range like
+`"1-16,18"`. Sizes within 3pt of a known paper are named and grouped together,
+because real A4 pages measure 595.2 x 841.6 in one file and 597.6 x 840.0 in the
+next; `exact_sizes_vary` tells you when a group isn't perfectly uniform.
+
+Reported sizes are the page as a reader sees it: the CropBox clipped to the
+MediaBox, with `/Rotate` applied. So a landscape box turned 90° reads as portrait,
+which is why a scan can look "wrong" in one viewer and fine in another.
+
+`pages` adds per-page rows with the raw boxes, for print questions or a single odd
+page:
+
+```python
+read_page_layout("~/Downloads/thesis.pdf", "212")
+# {'page': 212, 'width_pt': 841.9, 'height_pt': 595.3, 'rotation': 90,
+#  'paper': 'A4', 'orientation': 'landscape',
+#  'boxes': {'media': [0.0, 0.0, 595.28, 841.89]}, ...}
+```
+
+Accepts `"1-20"`, `"3"`, `"1,5,9-12"` or `"all"`, capped at 100 rows.
 
 ### `create_test_pdf_file(output_path=None, num_pages=3, title=None)`
 

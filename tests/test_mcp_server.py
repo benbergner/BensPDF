@@ -17,6 +17,7 @@ EXPECTED_TOOLS = {
     "pdf_page_count",
     "pdf_metadata",
     "pdf_check_text",
+    "pdf_page_layout",
     "create_test_pdf_file",
 }
 
@@ -188,6 +189,56 @@ class TestPdfCheckTextTool:
     @pytest.mark.asyncio
     async def test_expired_artifact_gives_actionable_error(self, call_tool):
         data = await call_tool(mcp, "pdf_check_text", {"ref": "art_deadbeef.pdf"})
+
+        assert data["success"] is False
+        assert "Re-run" in data["error"]
+
+
+class TestPdfPageLayoutTool:
+    """pdf_page_layout over the MCP boundary. Geometry lives in
+    test_page_layout.py; this covers the wiring and the pages argument."""
+
+    @pytest.mark.asyncio
+    async def test_groups_pages_from_a_path(self, tmp_path, call_tool):
+        test_pdf = create_test_pdf(tmp_path / "letter.pdf", num_pages=4)
+
+        data = await call_tool(mcp, "pdf_page_layout", {"ref": str(test_pdf)})
+
+        assert data["success"] is True
+        assert data["uniform"] is True
+        assert data["sizes"][0]["paper"] == "Letter"
+        assert data["sizes"][0]["pages"] == "1-4"
+        assert "pages" not in data, "detail is opt in"
+
+    @pytest.mark.asyncio
+    async def test_pages_argument_adds_detail(self, tmp_path, call_tool):
+        test_pdf = create_test_pdf(tmp_path / "detail.pdf", num_pages=6)
+
+        data = await call_tool(
+            mcp, "pdf_page_layout", {"ref": str(test_pdf), "pages": "2-3"}
+        )
+
+        assert [row["page"] for row in data["pages"]] == [2, 3]
+
+    @pytest.mark.asyncio
+    async def test_accepts_an_artifact_id(self, call_tool):
+        artifact = store.save(create_test_pdf_bytes(num_pages=2), ".pdf")
+
+        data = await call_tool(mcp, "pdf_page_layout", {"ref": artifact})
+
+        assert data["success"] is True
+        assert data["page_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_missing_file_reports_cleanly(self, call_tool):
+        data = await call_tool(mcp, "pdf_page_layout", {"ref": "/nonexistent/file.pdf"})
+
+        assert data["success"] is False
+        assert data["file_exists"] is False
+
+    @pytest.mark.asyncio
+    async def test_expired_artifact_gives_actionable_error(self, call_tool):
+        data = await call_tool(mcp, "pdf_page_layout", {"ref": "art_deadbeef.pdf"})
 
         assert data["success"] is False
         assert "Re-run" in data["error"]

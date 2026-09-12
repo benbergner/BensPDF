@@ -173,33 +173,34 @@ Two things have to line up, and `release.yml` checks both:
 The `io.github.` prefix is not decorative: with GitHub authentication the registry
 only accepts names under `io.github.<your-username>/`.
 
-To publish, after the PyPI release is live:
+Publishing is automated: the `registry` job in `release.yml` runs after the PyPI
+upload, authenticating with `github-oidc`, which needs no stored secret. There is
+nothing to do by hand per release.
+
+To check `server.json` before committing a change to it:
 
 ```bash
 brew install mcp-publisher
-mcp-publisher login github
-mcp-publisher publish
+mcp-publisher validate server.json
 ```
 
-Then confirm it landed:
+Worth knowing: `description` is capped at 100 characters, and that only surfaces
+at validation.
+
+To confirm a listing landed:
 
 ```bash
 curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=benspdf" | jq .
 ```
 
-To validate `server.json` before publishing:
+The registry is append-only and a published version is immutable, so each release
+needs its own entry — hence the automation. If you need to correct *metadata*
+without a new PyPI release, you cannot reuse the version: publish a semantic
+prerelease instead, `0.1.1-1`, `0.1.1-2`, and so on.
 
-```bash
-python -c "
-import json, urllib.request, jsonschema
-s = json.load(open('server.json'))
-with urllib.request.urlopen(s['\$schema']) as r: jsonschema.validate(s, json.load(r))
-print('valid')
-"
-```
-
-Worth knowing: `description` is capped at 100 characters, which is easy to exceed
-and only fails at validation.
+If the `registry` job fails, the PyPI release has already happened and only the
+listing is missing. Re-running the job is safe: a duplicate version is rejected,
+which is a no-op.
 
 ### Afterwards
 

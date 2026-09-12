@@ -102,3 +102,62 @@ jobs:
       # holds the upload credential is not something to leave floating.
       - name: Publish
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
+
+  registry:
+    name: List on the MCP registry
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      # github-oidc authentication needs no stored secret: the registry checks
+      # this token to confirm the run belongs to benbergner, which is what
+      # entitles it to publish under the io.github.benbergner/ namespace.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Version pinned and checksum verified. A `latest` download would let a
+      # future release of this tool change what runs here without review.
+      - name: Install mcp-publisher
+        env:
+          VERSION: v1.8.1
+          SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          url="https://github.com/modelcontextprotocol/registry/releases/download/${VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          curl -sSfL "$url" -o publisher.tar.gz
+          echo "${SHA256}  publisher.tar.gz" | sha256sum --check
+          tar -xzf publisher.tar.gz mcp-publisher
+          ./mcp-publisher validate server.json
+
+      - name: Authenticate
+        run: ./mcp-publisher login github-oidc
+
+      # The registry checks that the version in server.json really exists on
+      # PyPI, and PyPI's index takes a moment to catch up with the upload that
+      # just happened in the previous job.
+      - name: Publish
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if ./mcp-publisher publish; then
+              echo "published on attempt $attempt"
+              exit 0
+            fi
+            echo "not accepted yet, retrying in 30s"
+            sleep 30
+          done
+          echo "::error::mcp-publisher never accepted the submission"
+          exit 1
+
+      # This job runs after PyPI, so a failure here leaves the release published
+      # and only the registry listing missing. Re-running the job is safe; the
+      # registry rejects a duplicate version, which is a no-op not a corruption.
+      - name: Summarise
+        run: |
+          {
+            echo "### Listed on the MCP registry"
+            echo
+            echo "Check it with:"
+            echo
+            echo '```'
+            echo 'curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=benspdf" | jq .'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

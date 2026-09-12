@@ -65,3 +65,11 @@ where = ["src"]
 [[tool.mypy.overrides]]
 module = ["pypdfium2.*", "pypdfium2"]
 ignore_missing_imports = true
+
+# ollama is an optional extra, so the common case is that it is not installed -
+# which is the case cli.py already handles, by guarding the import and telling
+# the user how to get it. Without this, type checking an install that does not
+# have the extra fails on an import that is meant to be absent.
+[[tool.mypy.overrides]]
+module = ["ollama.*", "ollama"]
+ignore_missing_imports = true

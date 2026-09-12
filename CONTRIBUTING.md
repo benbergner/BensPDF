@@ -154,6 +154,53 @@ rehearsal.
 the release tag and the version in `pyproject.toml` disagree — otherwise a
 mistyped tag silently ships the wrong code under the right name.
 
+### The MCP registry
+
+`server.json` describes the server for the [official MCP registry](https://registry.modelcontextprotocol.io),
+which is the discovery surface clients and directories read. It is metadata only
+— the artifact still lives on PyPI.
+
+Two things have to line up, and `release.yml` checks both:
+
+- The version in `server.json`, and in its `packages` entry, must match the
+  release tag. The registry rejects a version that isn't on PyPI.
+- The README must contain `mcp-name: io.github.benbergner/benspdf`, which is how
+  the registry proves you own the PyPI package. It sits in an HTML comment on the
+  first line. PyPI stores the description as raw markdown, so the comment
+  survives; **the check reads the published description, so the token only counts
+  once a release carrying it has gone out.**
+
+The `io.github.` prefix is not decorative: with GitHub authentication the registry
+only accepts names under `io.github.<your-username>/`.
+
+To publish, after the PyPI release is live:
+
+```bash
+brew install mcp-publisher
+mcp-publisher login github
+mcp-publisher publish
+```
+
+Then confirm it landed:
+
+```bash
+curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=benspdf" | jq .
+```
+
+To validate `server.json` before publishing:
+
+```bash
+python -c "
+import json, urllib.request, jsonschema
+s = json.load(open('server.json'))
+with urllib.request.urlopen(s['\$schema']) as r: jsonschema.validate(s, json.load(r))
+print('valid')
+"
+```
+
+Worth knowing: `description` is capped at 100 characters, which is easy to exceed
+and only fails at validation.
+
 ### Afterwards
 
 Check the published artifact the way a user reaches it, not the way CI does. The

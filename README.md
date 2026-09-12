@@ -1,10 +1,24 @@
+<!-- mcp-name: io.github.benbergner/benspdf -->
+
 # BensPDF
+
+[![PyPI](https://img.shields.io/pypi/v/benspdf-mcp?style=flat-square&logo=pypi&logoColor=white&label=PyPI)](https://pypi.org/project/benspdf-mcp/)
+[![Python](https://img.shields.io/pypi/pyversions/benspdf-mcp?style=flat-square&logo=python&logoColor=white)](https://pypi.org/project/benspdf-mcp/)
+[![License](https://img.shields.io/pypi/l/benspdf-mcp?style=flat-square)](LICENSE)
 
 Ben's PDF tools for AI agents, exposed over the [Model Context Protocol](https://modelcontextprotocol.io) (MCP).
 
 Your PDFs are read on your own machine and never uploaded. Works with Claude
 Desktop, VS Code, Kiro, Cursor, the ChatGPT desktop app, and any other MCP
 client, or fully offline with a local Ollama model.
+
+**One-click install** —
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=benspdf&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D)
+[![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=benspdf&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D&quality=insiders)
+[![Install in Cursor](https://img.shields.io/badge/Cursor-Install-000000?style=flat-square&logo=cursor&logoColor=white)](https://cursor.com/en/install-mcp?name=benspdf&config=eyJuYW1lIjoiYmVuc3BkZiIsImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbImJlbnNwZGYtbWNwIl19)
+
+Those need [uv](https://docs.astral.sh/uv/getting-started/installation/) on your
+machine. For every other client, or to do it by hand, see [Setup](#setup).
 
 ## Tools
 

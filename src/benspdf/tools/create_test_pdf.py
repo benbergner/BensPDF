@@ -36,10 +36,7 @@ def create_test_pdf_bytes(num_pages: int = 3, title: Optional[str] = None) -> by
         writer.add_blank_page(width=612, height=792)  # US Letter size
 
     if title:
-        writer.add_metadata({
-            "/Title": title,
-            "/Producer": "BensPDF Test Utility"
-        })
+        writer.add_metadata({"/Title": title, "/Producer": "BensPDF Test Utility"})
 
     buffer = io.BytesIO()
     writer.write(buffer)
@@ -47,9 +44,7 @@ def create_test_pdf_bytes(num_pages: int = 3, title: Optional[str] = None) -> by
 
 
 def create_test_pdf(
-    output_path: str,
-    num_pages: int = 3,
-    title: Optional[str] = None
+    output_path: str, num_pages: int = 3, title: Optional[str] = None
 ) -> str:
     """
     Create a simple test PDF at a given path.

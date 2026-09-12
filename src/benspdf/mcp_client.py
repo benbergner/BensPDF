@@ -19,11 +19,11 @@ class MCPToolError(RuntimeError):
 
 class MCPClient:
     """Simple MCP client that connects to MCP servers."""
-    
+
     def __init__(self, server_command: Optional[Union[str, Sequence[str]]] = None):
         """
         Initialize MCP client.
-        
+
         Args:
             server_command: Command to start the MCP server, as a list of
                 arguments. A string is accepted too and split like a shell
@@ -37,7 +37,7 @@ class MCPClient:
             server_command = [sys.executable, "-m", "benspdf.mcp_server"]
         elif isinstance(server_command, str):
             server_command = shlex.split(server_command)
-        
+
         self.server_command = list(server_command)
         if not self.server_command:
             raise ValueError("server_command must not be empty")
@@ -47,12 +47,12 @@ class MCPClient:
         self._write = None
         self._server_ctx = None
         self._session_ctx = None
-    
+
     async def __aenter__(self):
         """Async context manager entry."""
         await self.connect()
         return self
-    
+
     async def __aexit__(
         self,
         exc_type: Optional[Type[BaseException]],
@@ -69,7 +69,7 @@ class MCPClient:
         Returning None here lets the real exception propagate untouched.
         """
         await self.close()
-    
+
     async def connect(self):
         """Connect to the MCP server."""
         # Create server parameters
@@ -77,25 +77,27 @@ class MCPClient:
             command=self.server_command[0],
             args=self.server_command[1:],
         )
-        
+
         # Start server and connect (keep contexts alive)
         self._server_ctx = stdio_client(server_params)
         self._read, self._write = await self._server_ctx.__aenter__()
-        
+
         self._session_ctx = ClientSession(self._read, self._write)
         self.session = await self._session_ctx.__aenter__()
-        
+
         await self.session.initialize()
-        
+
         # Get available tools
         tools_result = await self.session.list_tools()
-        self.tools = tools_result if isinstance(tools_result, list) else tools_result.tools
-        
+        self.tools = (
+            tools_result if isinstance(tools_result, list) else tools_result.tools
+        )
+
         print("✓ Connected to MCP server")
         print(f"✓ Found {len(self.tools)} tools:")
         for tool in self.tools:
             print(f"  - {tool.name}")
-    
+
     async def close(self) -> None:
         """
         Close the session and shut the server subprocess down.
@@ -119,23 +121,25 @@ class MCPClient:
             # never outlives the client.
             if server_ctx is not None:
                 await server_ctx.__aexit__(None, None, None)
-    
-    async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+
+    async def call_tool(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Call a tool on the MCP server.
-        
+
         Args:
             tool_name: Name of the tool to call
             arguments: Tool arguments
-            
+
         Returns:
             Tool result
         """
         if not self.session:
             raise RuntimeError("Not connected to MCP server")
-        
+
         result = await self.session.call_tool(tool_name, arguments)
-        
+
         # A failed call carries no structured payload, just a message saying
         # what went wrong (unknown tool, bad arguments, an exception in the
         # tool). Surface it instead of returning something empty.
@@ -143,19 +147,19 @@ class MCPClient:
             raise MCPToolError(
                 f"{tool_name} failed: {_result_text(result) or 'no details given'}"
             )
-        
+
         # snake_case on current versions, camelCase on older ones.
         structured = getattr(result, "structured_content", None)
         if structured is None:
             structured = getattr(result, "structuredContent", None)
-        
+
         if not isinstance(structured, dict):
             raise MCPToolError(
                 f"{tool_name} returned no structured result "
                 f"(got {type(structured).__name__}). "
                 f"Server said: {_result_text(result) or '<nothing>'}"
             )
-        
+
         # Tools wrap their payload under "result"; tolerate ones that don't.
         payload = structured.get("result", structured)
         return payload if isinstance(payload, dict) else {"result": payload}

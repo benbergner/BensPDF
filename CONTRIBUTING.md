@@ -156,11 +156,19 @@ mistyped tag silently ships the wrong code under the right name.
 
 ### Afterwards
 
-Check the published artifact the way a user reaches it, not the way CI does:
+Check the published artifact the way a user reaches it, not the way CI does. The
+verifier takes the launcher as written, so it can drive the README's own command:
 
 ```bash
-uvx benspdf-mcp    # should start and wait on stdin
+python scripts/verify_install.py uvx --no-cache benspdf-mcp
 ```
+
+`--no-cache` forces a resolve against PyPI. Without it a local cache entry can
+make a broken publish look fine. Expect around 10 seconds cold, 2 warm.
 
 Then add the server to one real client from the README and ask it something about
 a PDF. Until that happens, every config block in the README is an untested claim.
+
+Don't reach for `uv cache clean <package>` to get a cold run — it scans the whole
+cache and can take minutes on a large one. `--no-cache` bypasses instead of
+clearing, and leaves the cache intact.

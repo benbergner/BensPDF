@@ -87,6 +87,17 @@ Windows. You can also open it from **Settings → Developer → Edit Config**.
 }
 ```
 
+### Claude Code
+
+One command, no config file. Add `--scope user` to enable it everywhere rather
+than just the current project.
+
+```bash
+claude mcp add benspdf -- uvx benspdf-mcp
+```
+
+Check it connected with `claude mcp list`.
+
 ### VS Code
 
 `.vscode/mcp.json` in your workspace, or the same file in your user profile.

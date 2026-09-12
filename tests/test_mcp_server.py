@@ -7,7 +7,7 @@ import pytest
 from pypdf import PdfWriter
 
 from benspdf import create_test_pdf, create_test_pdf_bytes
-from benspdf.core import store
+from benscore import store
 from benspdf.mcp_server import INSTRUCTIONS, MAX_INLINE_IMAGES, mcp
 
 EXPECTED_TOOLS = {

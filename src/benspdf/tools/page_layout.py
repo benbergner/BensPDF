@@ -33,7 +33,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from pypdf import PdfReader
 from pypdf.errors import FileNotDecryptedError
 
-from ..core import err, ok
+from benscore import err, ok
 from .page_spec import format_ranges, parse_pages
 
 #: Known paper sizes in points, as (short edge, long edge). Orientation is worked

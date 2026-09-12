@@ -2,9 +2,12 @@
 BensPDF - Local PDF tools for AI agents
 
 Framework-agnostic PDF processing tools that work with MCP protocol.
+
+The shared artifact layer these verbs sit on is ``benscore``, imported from
+there rather than re-exported here: it is domain-neutral by design and does not
+belong to the PDF package.
 """
 
-from . import core
 from .tools.check_access import check_access
 from .tools.check_text import check_text
 from .tools.create_test_pdf import create_test_pdf, create_test_pdf_bytes
@@ -24,6 +27,4 @@ __all__ = [
     "render_pages",
     "create_test_pdf",
     "create_test_pdf_bytes",
-    # Shared artifact layer
-    "core",
 ]

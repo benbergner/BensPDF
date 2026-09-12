@@ -32,7 +32,7 @@ from typing import Any, Dict, List, Optional
 
 import pypdfium2 as pdfium
 
-from ..core import artifact_path, err, ok, save
+from benscore import artifact_path, err, ok, save
 from .page_spec import format_ranges, parse_pages
 
 #: Most pages one call will render. Bulk work is a loop of calls, deliberately,

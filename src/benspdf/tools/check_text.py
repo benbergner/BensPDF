@@ -43,7 +43,7 @@ from pypdf import PdfReader
 from pypdf.errors import FileNotDecryptedError
 from pypdf.generic import ContentStream
 
-from ..core import err, ok
+from benscore import err, ok
 from .metadata import read_metadata
 
 #: How many pages to examine, however long the document is.

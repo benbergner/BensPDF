@@ -32,8 +32,12 @@ page or an intermediate file straight away without exporting it first.
 
 `export` is the only tool that writes into your folders, so nothing shows up
 until you ask for it. Each time the server starts it clears out scratch files
-older than 7 days. Set `BENSPDF_WORKSPACE` to put the scratch folder somewhere
-other than `~/.benspdf/work`.
+older than 7 days. Set `BENSTOOLS_WORKSPACE` to put the scratch folder somewhere
+other than `~/.benstools/work`.
+
+The name is deliberately not PDF-specific. The scratch folder is shared, so a
+later tool package for another file type reads and writes the same artifacts and
+results can be handed between them.
 
 ## Setup
 
@@ -370,7 +374,7 @@ render_pages("~/Downloads/scan.pdf", "1-2")
  'format': 'png',
  'dpi': 150,
  'pages': [{'page': 1, 'artifact': 'art_bf52d4d1.png',
-            'path': '/Users/you/.benspdf/work/art_bf52d4d1.png',
+            'path': '/Users/you/.benstools/work/art_bf52d4d1.png',
             'width_px': 1275, 'height_px': 1651, 'dpi': 150,
             'size_bytes': 295904}, ...],
  'artifacts': ['art_bf52d4d1.png', 'art_9c1e77a0.png'],
@@ -450,10 +454,16 @@ pip install -e .
 python -m pytest tests/ -v
 ```
 
-The package is laid out as the server (`mcp_server.py`), one module per tool
-under `tools/`, the shared artifact layer (`core/`), a client that talks to the
+`src/` holds two packages. `benspdf` is the PDF side: the server
+(`mcp_server.py`), one module per tool under `tools/`, a client that talks to the
 server over stdio (`mcp_client.py`), the Ollama chat CLI built on that client
-(`cli.py`), and model selection (`models.py`).
+(`cli.py`), and model selection (`models.py`). `benscore` is the shared artifact
+layer underneath, and knows nothing about PDFs.
+
+Both ship in this one distribution today. `benscore` is separate because a later
+package for another file type needs the same scratch folder and the same result
+shape, and because nothing domain-specific belongs in a name that a second domain
+will have to import.
 
 Adding a tool means two things:
 
@@ -478,14 +488,14 @@ Tools that take a page range share one parser, `tools/page_spec.py`, so `"1-20"`
 `"3"`, `"1,5,9-12"` and `"all"` mean the same thing everywhere and the error
 messages match.
 
-If a tool produces a file, use the helpers in `src/benspdf/core/` instead of
-writing to disk yourself:
+If a tool produces a file, use the helpers in `src/benscore/` instead of writing
+to disk yourself:
 
-- `core.resolve(ref)` takes a file path or a scratch id and gives you a path to read
-- `core.save(data, ".pdf")` stores a result and returns its id
-- `core.artifact_path(id)` gives the path to report alongside that id, so the user
-  can open the file without knowing where the scratch folder is
-- `core.ok(...)` and `core.err(...)` keep the result shape the same across tools
+- `benscore.resolve(ref)` takes a file path or a scratch id and gives you a path to read
+- `benscore.save(data, ".pdf")` stores a result and returns its id
+- `benscore.artifact_path(id)` gives the path to report alongside that id, so the
+  user can open the file without knowing where the scratch folder is
+- `benscore.ok(...)` and `benscore.err(...)` keep the result shape the same across tools
 
 `create_test_pdf_file` in `mcp_server.py` is a short working example.
 

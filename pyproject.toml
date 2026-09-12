@@ -41,6 +41,11 @@ dev = [
 ]
 ollama = ["ollama>=0.1.0"]
 
+# Two top-level packages: benspdf (the PDF verbs) and benscore (the shared
+# artifact layer they sit on). benscore carries no domain in its name or its
+# config surface, so a future domain package can share one workspace with these
+# verbs, and so moving it into its own distribution later changes nothing for
+# anything that imports it.
 [tool.setuptools.packages.find]
 where = ["src"]
 

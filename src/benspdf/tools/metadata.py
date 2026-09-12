@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 from pypdf import PdfReader
 from pypdf.errors import FileNotDecryptedError
 
-from ..core import err, ok
+from benscore import err, ok
 
 #: Malformed PDFs raise almost anything while poking at individual fields, so this
 #: catches broadly on purpose: one bad date should cost that date, not the whole

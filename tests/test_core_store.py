@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from benspdf import core
-from benspdf.core import store
-from benspdf.core.errors import ArtifactNotFound, ExportConflict
+import benscore
+from benscore import store
+from benscore.errors import ArtifactNotFound, ExportConflict
 
 
 class TestWorkspace:
@@ -303,11 +303,11 @@ class TestPrune:
 class TestPublicSurface:
     """The names domain packages are expected to import."""
 
-    def test_reexported_from_core(self):
+    def test_reexported_from_benscore(self):
         for name in ("resolve", "save", "save_path", "export_artifact", "ok", "err"):
-            assert hasattr(core, name), name
+            assert hasattr(benscore, name), name
 
-    def test_round_trip_through_core(self, tmp_path):
-        artifact = core.save(b"%PDF-1.4", ".pdf")
-        written = core.export_artifact(artifact, tmp_path / "out.pdf")
+    def test_round_trip_through_benscore(self, tmp_path):
+        artifact = benscore.save(b"%PDF-1.4", ".pdf")
+        written = benscore.export_artifact(artifact, tmp_path / "out.pdf")
         assert Path(written).read_bytes() == b"%PDF-1.4"

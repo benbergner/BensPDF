@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+# 77 is the floor for PEP 639: `license` as an SPDX expression plus
+# `license-files`, which is what PyPI reads now.
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,18 +10,27 @@ version = "0.1.0"
 description = "Local PDF tools for AI agents, exposed over the Model Context Protocol"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [
     {name = "Benjamin Bergner", email = "bergner.benjamin@gmail.com"}
 ]
 keywords = ["mcp", "pdf", "llm", "agents", "model-context-protocol"]
+# These become the sidebar links on the PyPI page, which is where someone who
+# found the package by search goes next.
+urls.Homepage = "https://github.com/benbergner/BensPDF"
+urls.Repository = "https://github.com/benbergner/BensPDF"
+urls.Issues = "https://github.com/benbergner/BensPDF/issues"
+# No license classifier: PEP 639 replaced it with the `license` field above, and
+# setuptools rejects declaring both.
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Text Processing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
     "pypdf>=4.0.0",

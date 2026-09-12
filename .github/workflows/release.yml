@@ -1,0 +1,83 @@
+name: Publish to PyPI
+
+# Publishing is tied to a GitHub Release rather than a tag push, so cutting a
+# release is the single deliberate act that ships a version. Nothing reaches
+# PyPI from an ordinary push to main.
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build and check distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the package and its dev extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" build twine
+
+      # A release that fails its own tests should never reach PyPI, and a
+      # version cannot be re-uploaded once it is there.
+      - name: Test
+        run: python -m pytest tests/ -q
+
+      - name: Type check
+        run: python -m mypy src
+
+      - name: Build sdist and wheel
+        run: |
+          rm -rf dist
+          python -m build
+
+      - name: Check metadata renders on PyPI
+        run: python -m twine check --strict dist/*
+
+      # Guards against tagging v0.2.0 while pyproject still says 0.1.0, which
+      # PyPI would accept as a silent republish of the wrong version.
+      - name: Check the built version matches the release tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          built=$(ls dist/*.tar.gz | sed -E 's/.*-([0-9][^-]*)\.tar\.gz/\1/')
+          echo "release tag: $tag"
+          echo "built version: $built"
+          if [ "$tag" != "$built" ]; then
+            echo "::error::Release tag $tag does not match built version $built. Update version in pyproject.toml."
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # Named environment so the trusted publisher on PyPI can be scoped to it,
+    # and so a manual approval gate can be added later without touching this file.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/benspdf-mcp
+    permissions:
+      # Mints the short-lived OIDC token that PyPI trusted publishing exchanges
+      # for an upload. This is why the repo holds no PyPI API token.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+      # Pinned to the commit behind v1.14.2: a mutable tag on the action that
+      # holds the upload credential is not something to leave floating.
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33

@@ -87,14 +87,6 @@ server from your client's UI. Once connected, just ask in plain language:
 
 > How many pages are in ~/Downloads/report.pdf?
 
-Some clients can be set up with a single click, including the ones the buttons at
-the top don't cover:
-
-[![VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=benspdf&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D)
-[![VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=benspdf&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D&quality=insiders)
-[![Cursor](https://img.shields.io/badge/Cursor-Install-000000?style=flat-square&logo=cursor&logoColor=white)](https://cursor.com/en/install-mcp?name=benspdf&config=eyJuYW1lIjoiYmVuc3BkZiIsImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbImJlbnNwZGYtbWNwIl19)
-[![Visual Studio](https://img.shields.io/badge/Visual_Studio-Install-C16FDE?style=flat-square&logo=visualstudio&logoColor=white)](https://vs-open.link/mcp-install?%7B%22name%22%3A%22benspdf%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D)
-
 ### Claude Desktop
 
 Edit `claude_desktop_config.json`, which lives at

@@ -1,24 +1,41 @@
 <!-- mcp-name: io.github.benbergner/benspdf -->
 
-# BensPDF
+<div align="center">
 
-[![PyPI](https://img.shields.io/pypi/v/benspdf-mcp?style=flat-square&logo=pypi&logoColor=white&label=PyPI)](https://pypi.org/project/benspdf-mcp/)
-[![Python](https://img.shields.io/pypi/pyversions/benspdf-mcp?style=flat-square&logo=python&logoColor=white)](https://pypi.org/project/benspdf-mcp/)
-[![License](https://img.shields.io/pypi/l/benspdf-mcp?style=flat-square)](LICENSE)
+<h1>BensPDF</h1>
+
+<p><strong>PDF tools for AI agents. Your files never leave your machine.</strong></p>
+
+<p>
+<a href="https://pypi.org/project/benspdf-mcp/"><img src="https://img.shields.io/pypi/v/benspdf-mcp?style=flat-square&logo=pypi&logoColor=white&label=PyPI" alt="PyPI"></a>
+<a href="https://pypi.org/project/benspdf-mcp/"><img src="https://img.shields.io/pypi/pyversions/benspdf-mcp?style=flat-square&logo=python&logoColor=white" alt="Python versions"></a>
+<a href="https://github.com/benbergner/BensPDF/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/benspdf-mcp?style=flat-square" alt="License"></a>
+<a href="https://registry.modelcontextprotocol.io/v0/servers?search=benspdf"><img src="https://img.shields.io/badge/MCP-registry-1f6feb?style=flat-square" alt="MCP registry"></a>
+</p>
+
+<p><strong>Install in one click</strong></p>
+
+<p>
+<a href="https://vscode.dev/redirect/mcp/install?name=benspdf&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D"><img src="https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code"></a>
+<a href="https://insiders.vscode.dev/redirect/mcp/install?name=benspdf&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D&quality=insiders"><img src="https://img.shields.io/badge/VS_Code_Insiders-Install-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code Insiders"></a>
+<a href="https://cursor.com/en/install-mcp?name=benspdf&config=eyJuYW1lIjoiYmVuc3BkZiIsImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbImJlbnNwZGYtbWNwIl19"><img src="https://img.shields.io/badge/Cursor-Install-000000?style=flat-square&logo=cursor&logoColor=white" alt="Install in Cursor"></a>
+</p>
+
+</div>
+
+---
 
 Ben's PDF tools for AI agents, exposed over the [Model Context Protocol](https://modelcontextprotocol.io) (MCP).
 
-Your PDFs are read on your own machine and never uploaded. Works with Claude
-Desktop, VS Code, Kiro, Cursor, the ChatGPT desktop app, and any other MCP
-client, or fully offline with a local Ollama model.
+> [!NOTE]
+> Your PDFs are read on your own machine and never uploaded. With a hosted model
+> your questions still reach that model; pair the tools with a local Ollama model
+> and nothing leaves the machine at all.
 
-**One-click install** —
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=benspdf&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D)
-[![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=benspdf&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D&quality=insiders)
-[![Install in Cursor](https://img.shields.io/badge/Cursor-Install-000000?style=flat-square&logo=cursor&logoColor=white)](https://cursor.com/en/install-mcp?name=benspdf&config=eyJuYW1lIjoiYmVuc3BkZiIsImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbImJlbnNwZGYtbWNwIl19)
-
-Those need [uv](https://docs.astral.sh/uv/getting-started/installation/) on your
-machine. For every other client, or to do it by hand, see [Setup](#setup).
+Works with Claude Desktop, Claude Code, VS Code, Kiro, Cursor, the ChatGPT
+desktop app, and any other MCP client. The one-click buttons above need
+[uv](https://docs.astral.sh/uv/getting-started/installation/); for every other
+client, or to do it by hand, see [Setup](#setup).
 
 ## Tools
 

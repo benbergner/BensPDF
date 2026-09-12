@@ -18,7 +18,7 @@
 <p>
 <a href="https://vscode.dev/redirect/mcp/install?name=benspdf&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22benspdf-mcp%22%5D%7D"><img src="https://img.shields.io/badge/VS_Code-Install-0098FF?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Install in VS Code"></a>
 &nbsp;
-<a href="https://cursor.com/en/install-mcp?name=benspdf&config=eyJuYW1lIjoiYmVuc3BkZiIsImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbImJlbnNwZGYtbWNwIl19"><img src="https://img.shields.io/badge/Cursor-Install-000000?style=for-the-badge&logo=cursor&logoColor=white" alt="Install in Cursor"></a>
+<a href="https://cursor.com/en/install-mcp?name=benspdf&config=eyJuYW1lIjoiYmVuc3BkZiIsInR5cGUiOiJzdGRpbyIsImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbImJlbnNwZGYtbWNwIl19"><img src="https://img.shields.io/badge/Cursor-Install-000000?style=for-the-badge&logo=cursor&logoColor=white" alt="Install in Cursor"></a>
 </p>
 
 </div>
@@ -151,19 +151,75 @@ trust.
 }
 ```
 
-### Cursor, Continue.dev, and most other clients
+### Cursor
 
-Same shape as the Claude Desktop config above, in whatever file the client uses.
+The button at the top does this for you. By hand, it's `~/.cursor/mcp.json` to
+enable it everywhere, or `.cursor/mcp.json` in a project.
+
+```json
+{
+  "mcpServers": {
+    "benspdf": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["benspdf-mcp"]
+    }
+  }
+}
+```
+
+### Windsurf
+
+`~/.codeium/windsurf/mcp_config.json`. You can also reach it from Cascade:
+**Settings → Cascade → Manage MCPs → View raw config**, which is worth using
+since the path has moved between versions.
+
+```json
+{
+  "mcpServers": {
+    "benspdf": {
+      "command": "uvx",
+      "args": ["benspdf-mcp"]
+    }
+  }
+}
+```
+
+### Continue
+
+`~/.continue/config.yaml`, or a `.yaml` file under `.continue/mcpServers/` in a
+project. Continue is the one client here that doesn't take the JSON shape above:
+its config is YAML, and `mcpServers` is a list rather than an object keyed by name.
+
+```yaml
+mcpServers:
+  - name: benspdf
+    command: uvx
+    args:
+      - benspdf-mcp
+```
 
 ### ChatGPT desktop app, Codex CLI, Codex IDE extension
 
 All three are Codex clients and share one config file, `~/.codex/config.toml`,
-so adding the server once covers all of them.
+so adding the server once covers all of them. Note this one is TOML, not JSON.
 
 ```toml
 [mcp_servers.benspdf]
 command = "uvx"
 args = ["benspdf-mcp"]
+```
+
+### Any other MCP client
+
+Almost every client uses the same JSON as Claude Desktop above — an `mcpServers`
+object, with `command` set to `uvx` and `args` to `["benspdf-mcp"]`. Some want an
+explicit `"type": "stdio"`; adding it is harmless where it isn't required.
+
+If a client just asks for a command to run, it's:
+
+```
+uvx benspdf-mcp
 ```
 
 ## Fully offline with Ollama

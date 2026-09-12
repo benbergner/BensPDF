@@ -34,6 +34,7 @@ from pypdf import PdfReader
 from pypdf.errors import FileNotDecryptedError
 
 from ..core import err, ok
+from .page_spec import format_ranges, parse_pages
 
 #: Known paper sizes in points, as (short edge, long edge). Orientation is worked
 #: out separately, so each entry covers both.
@@ -119,7 +120,7 @@ def read_page_layout(pdf_path: str, pages: Optional[str] = None) -> Dict[str, An
     wanted: Set[int] = set()
     if pages is not None:
         try:
-            wanted = _parse_pages(pages, page_count)
+            wanted = parse_pages(pages, page_count)
         except ValueError as exc:
             return err(
                 str(exc),
@@ -346,89 +347,13 @@ def _group(measured: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "height_pt": height,
                 **_physical(width, height, unit),
                 "page_count": len(members),
-                "pages": _ranges([entry["page"] for entry in members]),
+                "pages": format_ranges([entry["page"] for entry in members]),
                 "exact_sizes_vary": len(sizes) > 1,
             }
         )
 
     groups.sort(key=lambda group: (-group["page_count"], group["pages"]))
     return groups
-
-
-def _ranges(numbers: Sequence[int]) -> str:
-    """Page numbers as a range string: [1, 2, 3, 5] becomes "1-3,5".
-
-    A group can cover thousands of pages, and a thousand integers is a poor way to
-    say "all of them".
-    """
-    ordered = sorted(numbers)
-    if not ordered:
-        return ""
-
-    parts: List[str] = []
-    start = previous = ordered[0]
-
-    for number in ordered[1:]:
-        if number == previous + 1:
-            previous = number
-        else:
-            parts.append(_span(start, previous))
-            start = previous = number
-
-    parts.append(_span(start, previous))
-    return ",".join(parts)
-
-
-def _span(start: int, end: int) -> str:
-    return str(start) if start == end else f"{start}-{end}"
-
-
-# --- the pages argument ----------------------------------------------------
-
-
-def _parse_pages(spec: Any, page_count: int) -> Set[int]:
-    """Read a page range spec into a set of 1-based page numbers.
-
-    Out of range numbers are clipped to the document rather than refused, since a
-    caller asking for "1-100" of a 12 page file has made their intent clear. A
-    spec that selects nothing at all is an error, because silently returning no
-    detail looks like a tool that does not work.
-    """
-    text = str(spec).strip().lower()
-    if not text:
-        raise ValueError(
-            'pages was empty. Use a range like "1-20", "3", "1,5,9-12", or "all".'
-        )
-
-    if text == "all":
-        return set(range(1, page_count + 1))
-
-    wanted: Set[int] = set()
-    for part in text.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        try:
-            if "-" in part.lstrip("-"):
-                start_text, end_text = part.split("-", 1)
-                start, end = int(start_text), int(end_text)
-            else:
-                start = end = int(part)
-        except ValueError:
-            raise ValueError(
-                f"Could not read {part!r} as a page or page range. Use something "
-                f'like "1-20", "3", "1,5,9-12", or "all".'
-            ) from None
-
-        if start > end:
-            start, end = end, start
-        wanted.update(range(max(1, start), min(page_count, end) + 1))
-
-    if not wanted:
-        raise ValueError(
-            f"pages={spec!r} selects no pages; the document has {page_count}."
-        )
-    return wanted
 
 
 # --- the sentence ----------------------------------------------------------

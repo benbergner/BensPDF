@@ -1,6 +1,11 @@
 # Core dependencies
 pypdf>=4.0.0
 
+# Rendering pages to images: pypdfium2 wraps PDFium (Apache-2.0/BSD-3-Clause,
+# prebuilt wheels, no Python dependencies of its own), Pillow encodes the PNGs.
+pypdfium2>=4.30.0
+Pillow>=10.0.0
+
 # MCP support
 mcp>=2.0.0
 

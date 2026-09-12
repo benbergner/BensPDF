@@ -14,6 +14,7 @@ from .errors import ArtifactNotFound, BensPDFError, ExportConflict
 from .results import err, ok
 from .store import (
     ARTIFACT_PREFIX,
+    artifact_path,
     DEFAULT_MAX_AGE_DAYS,
     DEFAULT_MAX_BYTES,
     WORKSPACE_ENV_VAR,
@@ -38,6 +39,7 @@ __all__ = [
     "err",
     # Store
     "workspace",
+    "artifact_path",
     "resolve",
     "save",
     "save_path",

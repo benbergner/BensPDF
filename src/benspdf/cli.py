@@ -16,6 +16,36 @@ import sys
 from benspdf.models import MODEL_ENV_VAR, resolve_model
 
 
+def _describe(result):
+    """One line about a tool result, for the person watching the CLI.
+
+    Prefers the tool's own `summary`, which every verb now writes and which is
+    the only field that knows what the call was *for*. The previous version read
+    `page_count` whenever it was present, so a one page render of a 213 page
+    document announced "213 pages" — true, and not the answer to anything asked.
+    """
+    if not isinstance(result, dict):
+        return f"Result: {result}"
+
+    if not result.get("success", True) or "error" in result:
+        return f"Error: {result.get('error', result)}"
+
+    summary = result.get("summary")
+    if summary:
+        return f"Result: {summary}"
+
+    # Tools that answer with a number rather than a sentence.
+    if "page_count" in result and "file_name" in result:
+        count = result["page_count"]
+        pages = "page" if count == 1 else "pages"
+        return f"Result: {count} {pages} in {result['file_name']}"
+    if "count" in result:
+        return f"Result: {result['count']} file(s)"
+    if "artifact" in result:
+        return f"Result: {result['artifact']}"
+    return f"Result: {result}"
+
+
 async def run_chat(requested_model=None):
     print("=" * 70)
     print("BensPDF MCP CLI - Chat with Ollama + MCP Tools")
@@ -140,13 +170,7 @@ Be direct and helpful."""
                             result = {"success": False, "error": str(e)}
                         tool_results.append(result)
                         
-                        if result.get("success") or "page_count" in result:
-                            if "page_count" in result:
-                                print(f"[Result: {result['page_count']} pages in {result['file_name']}]")
-                            else:
-                                print(f"[Result: {result}]")
-                        else:
-                            print(f"[Error: {result.get('error', result)}]")
+                        print(f"[{_describe(result)}]")
                         
                         # Send result back to model with clear instruction
                         messages.append({

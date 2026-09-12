@@ -115,6 +115,18 @@ def resolve(ref: Ref) -> Path:
     return path
 
 
+def artifact_path(artifact_id: str) -> Path:
+    """Where an artifact lives, without requiring that it still does.
+
+    ``resolve`` is the right call for reading, since it insists the file exists.
+    This one is for *reporting*: a verb that has just produced an artifact returns
+    both the id, which other tools take, and the path, which a person can open.
+    Without the path, looking at a result means knowing the workspace convention
+    and assembling the path by hand.
+    """
+    return workspace() / str(artifact_id).strip()
+
+
 def save(data: bytes, suffix: str = ".pdf") -> str:
     """Store new content in the workspace and return its artifact id.
 
@@ -197,6 +209,7 @@ def list_recent(limit: int = 20) -> List[Dict[str, Any]]:
                     stat.st_mtime,
                     {
                         "artifact": path.name,
+                        "path": str(path),
                         "size_bytes": stat.st_size,
                         "age_seconds": int(now - stat.st_mtime),
                     },
@@ -263,8 +276,7 @@ def prune(
             continue
         stat = path.stat()
         expired = (
-            max_age_days is not None
-            and (now - stat.st_mtime) > max_age_days * 86400
+            max_age_days is not None and (now - stat.st_mtime) > max_age_days * 86400
         )
         if expired:
             freed += stat.st_size

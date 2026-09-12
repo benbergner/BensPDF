@@ -23,6 +23,8 @@ classifiers = [
 ]
 dependencies = [
     "pypdf>=4.0.0",
+    "pypdfium2>=4.30.0",
+    "Pillow>=10.0.0",
     "mcp>=2.0.0",
 ]
 
@@ -41,3 +43,9 @@ ollama = ["ollama>=0.1.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# pypdfium2 is a ctypes binding and ships no py.typed marker, so mypy cannot see
+# into it. Nothing to fix on our side; the calls we make are covered by tests.
+[[tool.mypy.overrides]]
+module = ["pypdfium2.*", "pypdfium2"]
+ignore_missing_imports = true

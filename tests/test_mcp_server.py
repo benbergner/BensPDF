@@ -8,7 +8,7 @@ from pypdf import PdfWriter
 
 from benspdf import create_test_pdf, create_test_pdf_bytes
 from benspdf.core import store
-from benspdf.mcp_server import INSTRUCTIONS, mcp
+from benspdf.mcp_server import INSTRUCTIONS, MAX_INLINE_IMAGES, mcp
 
 EXPECTED_TOOLS = {
     # core
@@ -21,6 +21,7 @@ EXPECTED_TOOLS = {
     "pdf_check_text",
     "pdf_check_access",
     "pdf_page_layout",
+    "pdf_render_pages",
     "create_test_pdf_file",
 }
 
@@ -311,6 +312,14 @@ class TestCreateTestPdfTool:
         ), "nothing should be written without an output_path"
 
     @pytest.mark.asyncio
+    async def test_reports_the_path_of_the_artifact(self, call_tool):
+        """Every verb that produces an artifact says where it landed."""
+        data = await call_tool(mcp, "create_test_pdf_file", {"num_pages": 1})
+
+        assert data["path"] == str(store.artifact_path(data["artifact"]))
+        assert Path(data["path"]).exists()
+
+    @pytest.mark.asyncio
     async def test_also_writes_when_given_a_path(self, tmp_path, call_tool):
         """Test creating PDF via MCP tool."""
         output_path = str(tmp_path / "mcp_created.pdf")
@@ -325,6 +334,118 @@ class TestCreateTestPdfTool:
         assert data["num_pages"] == 7
         assert "pdf_path" in data
         assert Path(data["pdf_path"]).exists()
+
+
+class TestPdfRenderPagesTool:
+    """pdf_render_pages is the only tool that returns something to look at.
+
+    Rendering itself is covered in test_render_pages.py. What matters here is the
+    wire shape: image blocks the model can see *and* the usual structured payload,
+    which needs a CallToolResult rather than a plain dict.
+    """
+
+    @staticmethod
+    async def call_raw(name, args):
+        """The full result, not just the payload: content blocks included."""
+        result = await mcp.call_tool(name, args)
+        if isinstance(result, tuple):
+            content, structured = result
+            return content, structured["result"]
+        return result.content, result.structured_content["result"]
+
+    @pytest.mark.asyncio
+    async def test_images_come_back_alongside_the_payload(self, tmp_path):
+        test_pdf = create_test_pdf(tmp_path / "two.pdf", num_pages=2)
+
+        content, data = await self.call_raw(
+            "pdf_render_pages", {"ref": str(test_pdf), "dpi": 72}
+        )
+
+        images = [block for block in content if block.type == "image"]
+        assert len(images) == 2
+        assert all(block.mime_type == "image/png" for block in images)
+        assert data["success"] is True
+        assert data["rendered"] == 2
+        assert data["images_attached"] == 2
+
+    @pytest.mark.asyncio
+    async def test_view_false_returns_ids_only(self, tmp_path):
+        """For bulk work where nobody is looking, images are pure context cost."""
+        test_pdf = create_test_pdf(tmp_path / "bulk.pdf", num_pages=2)
+
+        content, data = await self.call_raw(
+            "pdf_render_pages", {"ref": str(test_pdf), "dpi": 72, "view": False}
+        )
+
+        assert [block.type for block in content] == ["text"]
+        assert len(data["artifacts"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_inline_images_are_capped(self, tmp_path):
+        """Images cost about a thousand tokens each, so only the first few show."""
+        test_pdf = create_test_pdf(tmp_path / "many.pdf", num_pages=8)
+
+        content, data = await self.call_raw(
+            "pdf_render_pages", {"ref": str(test_pdf), "dpi": 36}
+        )
+
+        images = [block for block in content if block.type == "image"]
+        assert len(images) == MAX_INLINE_IMAGES
+        assert data["rendered"] == 8
+        assert data["images_attached"] == MAX_INLINE_IMAGES
+        assert data["images_omitted"] == 8 - MAX_INLINE_IMAGES
+        assert "the rest are artifacts" in data["summary"]
+
+    @pytest.mark.asyncio
+    async def test_rendered_pages_can_be_exported(self, tmp_path, call_tool):
+        """The chain this verb exists for: render, then keep what you rendered."""
+        test_pdf = create_test_pdf(tmp_path / "chain.pdf", num_pages=2)
+
+        _content, rendered = await self.call_raw(
+            "pdf_render_pages", {"ref": str(test_pdf), "dpi": 72, "view": False}
+        )
+        exported = await call_tool(
+            mcp,
+            "export",
+            {
+                "refs": rendered["artifacts"],
+                "dest": str(tmp_path / "images"),
+                "name": "page_{n:02d}{ext}",
+            },
+        )
+
+        assert exported["success"] is True
+        assert (tmp_path / "images" / "page_01.png").exists()
+        assert (tmp_path / "images" / "page_02.png").exists()
+
+    @pytest.mark.asyncio
+    async def test_accepts_an_artifact_id(self):
+        artifact = store.save(create_test_pdf_bytes(num_pages=1), ".pdf")
+
+        _content, data = await self.call_raw(
+            "pdf_render_pages", {"ref": artifact, "dpi": 72}
+        )
+
+        assert data["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_missing_file_reports_cleanly(self):
+        content, data = await self.call_raw(
+            "pdf_render_pages", {"ref": "/nonexistent/file.pdf"}
+        )
+
+        assert data["success"] is False
+        assert data["file_exists"] is False
+        assert [block.type for block in content] == ["text"], "no images to show"
+
+    @pytest.mark.asyncio
+    async def test_expired_artifact_gives_actionable_error(self):
+        _content, data = await self.call_raw(
+            "pdf_render_pages", {"ref": "art_deadbeef.pdf"}
+        )
+
+        assert data["success"] is False
+        assert "Re-run" in data["error"]
 
 
 class TestExportTool:

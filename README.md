@@ -15,6 +15,7 @@ client, or fully offline with a local Ollama model.
 | `pdf_check_text` | Says whether a PDF is readable text or a scan that needs OCR |
 | `pdf_page_layout` | Page sizes, orientation, rotation and page boxes |
 | `pdf_check_access` | Encryption, and what the file permits: printing, copying, editing |
+| `pdf_render_pages` | Renders pages to images, so a page can be looked at |
 | `create_test_pdf_file` | Generates a throwaway PDF, handy for trying things out |
 | `export` | Saves results to a real location on disk |
 | `list_artifacts` | Lists recent temporary results |
@@ -25,6 +26,9 @@ client, or fully offline with a local Ollama model.
 When a tool makes a new PDF, it goes into a scratch folder instead of your own
 folders, and you get back a short id like `art_a1b2c3d4.pdf`. Tools accept those
 ids anywhere they accept a file path, so several steps can be chained together.
+
+Results carry the artifact's `path` as well as its id, so you can open a rendered
+page or an intermediate file straight away without exporting it first.
 
 `export` is the only tool that writes into your folders, so nothing shows up
 until you ask for it. Each time the server starts it clears out scratch files
@@ -350,6 +354,54 @@ read_page_layout("~/Downloads/thesis.pdf", "212")
 
 Accepts `"1-20"`, `"3"`, `"1,5,9-12"` or `"all"`, capped at 100 rows.
 
+### `pdf_render_pages(ref, pages=None, dpi=150, view=True)`
+
+Renders pages to PNG images. This is for *seeing* a page, not reading it.
+
+```python
+from benspdf import render_pages
+
+render_pages("~/Downloads/scan.pdf", "1-2")
+```
+
+```python
+{'success': True,
+ 'page_count': 5,
+ 'format': 'png',
+ 'dpi': 150,
+ 'pages': [{'page': 1, 'artifact': 'art_bf52d4d1.png',
+            'path': '/Users/you/.benspdf/work/art_bf52d4d1.png',
+            'width_px': 1275, 'height_px': 1651, 'dpi': 150,
+            'size_bytes': 295904}, ...],
+ 'artifacts': ['art_bf52d4d1.png', 'art_9c1e77a0.png'],
+ 'rendered': 2,
+ 'truncated': False,
+ 'summary': 'Rendered 2 pages of scan.pdf (page 1-2) as PNG at 150 dpi, '
+            '1275 x 1651 px. Pass the artifact ids to export to save them.'}
+```
+
+Over MCP, the images come back in the response as well, so the model can actually
+look at them — the first few only, since an image costs roughly a thousand tokens.
+`view=False` skips them for bulk work. Everything is saved as an artifact either
+way, so `export` can write the ones you want to keep.
+
+What it's for: checking a change landed (did a redaction remove the content or just
+cover it, did a split cut where you meant), previews, and pages where the
+appearance *is* the content — handwriting, signatures, charts, checkbox state.
+
+For *reading* a scan, OCR is the better path: a text layer is searchable, cheap to
+re-read, and works with a local text model, which no image does. Render when OCR
+isn't available or would mangle what matters.
+
+Rasterizing can't be made cheap by sampling, so the limits are explicit and always
+reported: 20 pages per call, and resolution reduced for a page that would be
+enormous. One file in a 141-file corpus is 34 x 49 inches, which at 150 dpi would
+be 37.8 megapixels and 113 MB of bitmap for one page; it comes back at 82 dpi with
+`dpi_reduced_from: 150` and a note in the summary.
+
+The page it draws is the page `pdf_page_layout` measures — CropBox, with `/Rotate`
+applied — so a rotated page renders the way it presents.
+
 ### `create_test_pdf_file(output_path=None, num_pages=3, title=None)`
 
 Generates a PDF so you can try the other tools without hunting for a file. It
@@ -422,11 +474,17 @@ use instead, and any field whose name doesn't explain it. Skip the list of
 returned fields — results are self-describing dicts. Anything shared by all tools
 goes in `INSTRUCTIONS` in `mcp_server.py`, which the server sends once.
 
+Tools that take a page range share one parser, `tools/page_spec.py`, so `"1-20"`,
+`"3"`, `"1,5,9-12"` and `"all"` mean the same thing everywhere and the error
+messages match.
+
 If a tool produces a file, use the helpers in `src/benspdf/core/` instead of
 writing to disk yourself:
 
 - `core.resolve(ref)` takes a file path or a scratch id and gives you a path to read
 - `core.save(data, ".pdf")` stores a result and returns its id
+- `core.artifact_path(id)` gives the path to report alongside that id, so the user
+  can open the file without knowing where the scratch folder is
 - `core.ok(...)` and `core.err(...)` keep the result shape the same across tools
 
 `create_test_pdf_file` in `mcp_server.py` is a short working example.

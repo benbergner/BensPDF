@@ -17,10 +17,13 @@ away. Field lists are left out — results are dicts with self-describing keys, 
 the model reads them moments later anyway.
 """
 
+import json
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from mcp.server import MCPServer
+from mcp.server.mcpserver import Image
+from mcp.types import CallToolResult, TextContent
 
 from benspdf import (
     PDFPageCounterTool,
@@ -28,6 +31,7 @@ from benspdf import (
     check_text,
     read_metadata,
     read_page_layout,
+    render_pages,
 )
 from benspdf import core
 from benspdf.core import tools as core_tools
@@ -54,11 +58,46 @@ are interchangeable, which is what lets tools be chained.
 went wrong and usually what to do about it, so read it instead of retrying \
 blindly.
 - A tool that produces a file stores it as a temporary artifact and returns its \
-id. `export` is the only tool that writes into the user's folders, so nothing is \
-saved until it is called, and artifacts expire after a week."""
+id, alongside the `path` it currently sits at. Pass the id to other tools; offer \
+the path when the user wants to look at the file themselves.
+- `export` is the only tool that writes into the user's folders, so nothing is \
+saved where they keep things until it is called, and artifacts expire after a \
+week."""
+
+#: How many rendered pages come back as viewable images. Images cost roughly a
+#: thousand tokens each, so the rest stay artifacts the caller can export or
+#: render again in a narrower range.
+MAX_INLINE_IMAGES = 5
 
 # Create MCP server
 mcp = MCPServer("benspdf", version=_VERSION, instructions=INSTRUCTIONS)
+
+
+def _as_result(
+    payload: Dict[str, Any], images: Optional[List[str]] = None
+) -> CallToolResult:
+    """Wrap a tool payload, optionally with images the model can actually see.
+
+    Returning a dict gets a tool structured output and nothing to look at.
+    Returning image content gets something to look at and no structured output.
+    A `CallToolResult` carries both, in the same ``{"result": ...}`` shape every
+    other tool here produces, so the payload convention does not change just
+    because this one verb has pictures.
+    """
+    blocks: List[Any] = []
+
+    for artifact in images or []:
+        try:
+            data = core.resolve(artifact).read_bytes()
+        except (core.ArtifactNotFound, OSError):
+            continue  # the artifact id is still in the payload
+        blocks.append(Image(data=data, format="png").to_image_content())
+
+    blocks.append(
+        TextContent(type="text", text=json.dumps(payload, indent=2, default=str))
+    )
+    return CallToolResult(content=blocks, structured_content={"result": payload})
+
 
 # Register the shared core tools (export, list_artifacts, discard)
 core_tools.register(mcp)
@@ -217,6 +256,58 @@ def pdf_page_layout(ref: str, pages: Optional[str] = None) -> Dict[str, Any]:
 
 
 @mcp.tool()
+def pdf_render_pages(
+    ref: str,
+    pages: Optional[str] = None,
+    dpi: int = 150,
+    view: bool = True,
+) -> CallToolResult:
+    """Render PDF pages to images, so a page can be looked at rather than read.
+
+    Use it to see what a page looks like: checking a change landed (did a redaction
+    remove content, did a split cut where intended), previewing, and pages where
+    appearance is the content — handwriting, signatures, charts, checkbox state.
+
+    For *reading* a scan prefer pdf_ocr, whose text layer is searchable and needs no
+    vision model; render when OCR is unavailable or would mangle what matters.
+
+    Every page is saved as a PNG artifact and its id returned. With `view`, the
+    default, the first few images also come back to be looked at, since images are
+    expensive in context. Limits are explicit: 20 pages per call, and resolution is
+    reduced for a page that would be enormous — both reported, never silent.
+
+    Args:
+        ref: PDF file path, or a workspace artifact id.
+        pages: Which pages: "1-20", "3", "1,5,9-12" or "all". Defaults to all, up
+            to the per-call limit.
+        dpi: Resolution, 36 to 600. 150 suits reading and previewing.
+        view: Return the images to look at, not just artifact ids.
+    """
+    try:
+        resolved = core.resolve(ref)
+    except core.ArtifactNotFound as exc:
+        return _as_result(core.err(str(exc), file_exists=False))
+    except (FileNotFoundError, IsADirectoryError) as exc:
+        return _as_result(core.err(str(exc), file_path=str(ref), file_exists=False))
+
+    result = render_pages(str(resolved), pages=pages, dpi=dpi)
+
+    if not (view and result.get("success")):
+        return _as_result(result)
+
+    shown = result["pages"][:MAX_INLINE_IMAGES]
+    result["images_attached"] = len(shown)
+    result["images_omitted"] = len(result["pages"]) - len(shown)
+    if result["images_omitted"]:
+        result["summary"] += (
+            f" {result['images_attached']} of {len(result['pages'])} images are "
+            f"shown here; the rest are artifacts."
+        )
+
+    return _as_result(result, images=[entry["artifact"] for entry in shown])
+
+
+@mcp.tool()
 def create_test_pdf_file(
     output_path: Optional[str] = None,
     num_pages: int = 3,
@@ -239,7 +330,11 @@ def create_test_pdf_file(
     except (OSError, ValueError) as exc:
         return core.err(f"Could not create the test PDF: {exc}")
 
-    result: Dict[str, Any] = {"artifact": artifact, "num_pages": num_pages}
+    result: Dict[str, Any] = {
+        "artifact": artifact,
+        "path": str(core.artifact_path(artifact)),
+        "num_pages": num_pages,
+    }
 
     if output_path:
         try:

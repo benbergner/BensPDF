@@ -108,6 +108,36 @@ class TestSave:
         assert source.exists(), "the original must not be moved"
 
 
+class TestArtifactPath:
+    """Where an artifact sits, for reporting rather than reading.
+
+    Verbs return the id *and* the path: other tools take the id, a person opens
+    the path. Without it, looking at a result means knowing the workspace layout
+    and assembling the path by hand.
+    """
+
+    def test_points_into_the_workspace(self, isolated_workspace):
+        artifact = store.save(b"x", ".png")
+
+        path = store.artifact_path(artifact)
+
+        assert path.parent == isolated_workspace
+        assert path.name == artifact
+        assert path.read_bytes() == b"x"
+
+    def test_agrees_with_resolve_for_a_live_artifact(self):
+        artifact = store.save(b"x", ".pdf")
+
+        assert store.artifact_path(artifact) == store.resolve(artifact)
+
+    def test_does_not_require_the_artifact_to_exist(self):
+        """Unlike resolve: this answers where it would be, not whether it is."""
+        path = store.artifact_path("art_deadbeef.png")
+
+        assert path.name == "art_deadbeef.png"
+        assert not path.exists()
+
+
 class TestExportArtifact:
     """The only function that writes outside the workspace."""
 
@@ -168,6 +198,14 @@ class TestListRecent:
         assert entry["size_bytes"] == 5
         assert entry["age_seconds"] >= 0
 
+    def test_reports_the_path_so_a_listed_artifact_can_be_opened(self):
+        artifact = store.save(b"12345", ".png")
+
+        entry = store.list_recent()[0]
+
+        assert entry["path"] == str(store.artifact_path(artifact))
+        assert Path(entry["path"]).exists()
+
     def test_ignores_foreign_files(self, isolated_workspace):
         store.workspace()
         (isolated_workspace / "notes.txt").write_text("not an artifact")
@@ -198,7 +236,9 @@ class TestDiscard:
 
         assert result["removed"] == []
         assert result["skipped"] == [str(victim)]
-        assert victim.exists(), "discard must refuse anything that is not an artifact id"
+        assert (
+            victim.exists()
+        ), "discard must refuse anything that is not an artifact id"
 
     def test_unknown_id_is_skipped_not_an_error(self):
         result = store.discard("art_deadbeef.pdf")

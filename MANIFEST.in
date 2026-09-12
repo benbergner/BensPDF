@@ -1,0 +1,11 @@
+# setuptools already picks up tests/test_*.py by itself, but not conftest.py,
+# which every test needs: the autouse isolated_workspace fixture lives there and
+# points the artifact workspace at a temp directory. Without it the tests in the
+# sdist collect and then write to the real ~/.benstools/work. Graft the whole
+# directory so the sdist is either coherent or obviously not.
+graft tests
+
+# Build noise that has no business in a release artifact.
+global-exclude *.py[cod]
+global-exclude .DS_Store
+prune **/__pycache__

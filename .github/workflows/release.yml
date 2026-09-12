@@ -52,6 +52,27 @@ jobs:
             exit 1
           fi
 
+      # server.json carries the version independently, and the MCP registry
+      # rejects a submission whose version does not exist on PyPI. Catching the
+      # drift here is cheaper than catching it at publish time.
+      - name: Check server.json agrees
+        run: |
+          python - "$GITHUB_REF_NAME" <<'PY'
+          import json, sys
+          tag = sys.argv[1].lstrip("v")
+          server = json.load(open("server.json"))
+          versions = {("server", server["version"])} | {
+              ("package " + p["identifier"], p["version"]) for p in server["packages"]
+          }
+          bad = [f"{where}={value}" for where, value in sorted(versions) if value != tag]
+          if bad:
+              sys.exit(
+                  f"::error::server.json disagrees with release tag {tag}: "
+                  + ", ".join(bad)
+              )
+          print(f"server.json agrees on {tag}")
+          PY
+
       - uses: actions/upload-artifact@v4
         with:
           name: distributions

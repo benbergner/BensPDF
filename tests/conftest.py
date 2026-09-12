@@ -2,14 +2,14 @@
 Shared test fixtures.
 
 Every test gets its own throwaway workspace so the suite never reads or writes
-the real one at ~/.benspdf/work.
+the real one at ~/.benstools/work.
 """
 
 from typing import Any, Dict
 
 import pytest
 
-from benspdf.core.store import WORKSPACE_ENV_VAR
+from benscore.store import WORKSPACE_ENV_VAR
 
 
 @pytest.fixture(autouse=True)

@@ -31,7 +31,7 @@ from pypdf import PdfReader
 from pypdf.constants import UserAccessPermissions
 from pypdf.errors import FileNotDecryptedError
 
-from ..core import err, ok
+from benscore import err, ok
 
 #: The permission bits worth reporting, in the order a person would ask about
 #: them, mapped from pypdf's flags to words rather than spec vocabulary.

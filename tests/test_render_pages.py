@@ -20,7 +20,7 @@ from pypdf import PdfWriter
 from pypdf.generic import ArrayObject, FloatObject, NameObject, NumberObject
 
 from benspdf import read_page_layout, render_pages
-from benspdf.core import store
+from benscore import store
 from benspdf.tools import render_pages as render_module
 
 LETTER = (612.0, 792.0)

@@ -38,7 +38,12 @@ DEFAULT_MAX_AGE_DAYS = 7
 DEFAULT_MAX_BYTES = 2_000_000_000
 
 #: Environment variable that relocates the workspace.
-WORKSPACE_ENV_VAR = "BENSPDF_WORKSPACE"
+#:
+#: Deliberately not domain-specific. One workspace shared by every domain
+#: package is what lets an artifact from a PDF verb be passed to a spreadsheet
+#: verb; a per-package variable would give each its own folder and break the
+#: handoff at the point it matters most.
+WORKSPACE_ENV_VAR = "BENSTOOLS_WORKSPACE"
 
 # Deliberately strict: an 8 character hex body with an optional extension. A
 # loose check would let a real file named "art_notes.pdf" in the current
@@ -55,7 +60,7 @@ def workspace() -> Path:
     tests and users can relocate it without reimporting.
     """
     raw = os.environ.get(WORKSPACE_ENV_VAR)
-    base = Path(raw).expanduser() if raw else Path.home() / ".benspdf" / "work"
+    base = Path(raw).expanduser() if raw else Path.home() / ".benstools" / "work"
     base.mkdir(parents=True, exist_ok=True)
     return base
 

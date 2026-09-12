@@ -25,6 +25,8 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver import Image
 from mcp.types import CallToolResult, TextContent
 
+import benscore
+from benscore import tools as core_tools
 from benspdf import (
     PDFPageCounterTool,
     check_access,
@@ -33,8 +35,6 @@ from benspdf import (
     read_page_layout,
     render_pages,
 )
-from benspdf import core
-from benspdf.core import tools as core_tools
 from benspdf.tools.create_test_pdf import create_test_pdf_bytes
 
 try:
@@ -88,8 +88,8 @@ def _as_result(
 
     for artifact in images or []:
         try:
-            data = core.resolve(artifact).read_bytes()
-        except (core.ArtifactNotFound, OSError):
+            data = benscore.resolve(artifact).read_bytes()
+        except (benscore.ArtifactNotFound, OSError):
             continue  # the artifact id is still in the payload
         blocks.append(Image(data=data, format="png").to_image_content())
 
@@ -117,11 +117,11 @@ def pdf_page_count(ref: str) -> Dict[str, Any]:
         ref: PDF file path, or a workspace artifact id.
     """
     try:
-        resolved = core.resolve(ref)
-    except core.ArtifactNotFound as exc:
-        return core.err(str(exc), file_exists=False)
+        resolved = benscore.resolve(ref)
+    except benscore.ArtifactNotFound as exc:
+        return benscore.err(str(exc), file_exists=False)
     except (FileNotFoundError, IsADirectoryError) as exc:
-        return core.err(str(exc), file_path=str(ref), file_exists=False)
+        return benscore.err(str(exc), file_path=str(ref), file_exists=False)
 
     return pdf_counter.count_pages(str(resolved))
 
@@ -145,11 +145,11 @@ def pdf_metadata(ref: str) -> Dict[str, Any]:
         ref: PDF file path, or a workspace artifact id.
     """
     try:
-        resolved = core.resolve(ref)
-    except core.ArtifactNotFound as exc:
-        return core.err(str(exc), file_exists=False)
+        resolved = benscore.resolve(ref)
+    except benscore.ArtifactNotFound as exc:
+        return benscore.err(str(exc), file_exists=False)
     except (FileNotFoundError, IsADirectoryError) as exc:
-        return core.err(str(exc), file_path=str(ref), file_exists=False)
+        return benscore.err(str(exc), file_path=str(ref), file_exists=False)
 
     return read_metadata(str(resolved))
 
@@ -176,11 +176,11 @@ def pdf_check_text(ref: str) -> Dict[str, Any]:
         ref: PDF file path, or a workspace artifact id.
     """
     try:
-        resolved = core.resolve(ref)
-    except core.ArtifactNotFound as exc:
-        return core.err(str(exc), file_exists=False)
+        resolved = benscore.resolve(ref)
+    except benscore.ArtifactNotFound as exc:
+        return benscore.err(str(exc), file_exists=False)
     except (FileNotFoundError, IsADirectoryError) as exc:
-        return core.err(str(exc), file_path=str(ref), file_exists=False)
+        return benscore.err(str(exc), file_path=str(ref), file_exists=False)
 
     return check_text(str(resolved))
 
@@ -211,11 +211,11 @@ def pdf_check_access(ref: str) -> Dict[str, Any]:
         ref: PDF file path, or a workspace artifact id.
     """
     try:
-        resolved = core.resolve(ref)
-    except core.ArtifactNotFound as exc:
-        return core.err(str(exc), file_exists=False)
+        resolved = benscore.resolve(ref)
+    except benscore.ArtifactNotFound as exc:
+        return benscore.err(str(exc), file_exists=False)
     except (FileNotFoundError, IsADirectoryError) as exc:
-        return core.err(str(exc), file_path=str(ref), file_exists=False)
+        return benscore.err(str(exc), file_path=str(ref), file_exists=False)
 
     return check_access(str(resolved))
 
@@ -246,11 +246,11 @@ def pdf_page_layout(ref: str, pages: Optional[str] = None) -> Dict[str, Any]:
         pages: Optional page range for per page detail. Omit for groups only.
     """
     try:
-        resolved = core.resolve(ref)
-    except core.ArtifactNotFound as exc:
-        return core.err(str(exc), file_exists=False)
+        resolved = benscore.resolve(ref)
+    except benscore.ArtifactNotFound as exc:
+        return benscore.err(str(exc), file_exists=False)
     except (FileNotFoundError, IsADirectoryError) as exc:
-        return core.err(str(exc), file_path=str(ref), file_exists=False)
+        return benscore.err(str(exc), file_path=str(ref), file_exists=False)
 
     return read_page_layout(str(resolved), pages)
 
@@ -284,11 +284,11 @@ def pdf_render_pages(
         view: Return the images to look at, not just artifact ids.
     """
     try:
-        resolved = core.resolve(ref)
-    except core.ArtifactNotFound as exc:
-        return _as_result(core.err(str(exc), file_exists=False))
+        resolved = benscore.resolve(ref)
+    except benscore.ArtifactNotFound as exc:
+        return _as_result(benscore.err(str(exc), file_exists=False))
     except (FileNotFoundError, IsADirectoryError) as exc:
-        return _as_result(core.err(str(exc), file_path=str(ref), file_exists=False))
+        return _as_result(benscore.err(str(exc), file_path=str(ref), file_exists=False))
 
     result = render_pages(str(resolved), pages=pages, dpi=dpi)
 
@@ -326,25 +326,25 @@ def create_test_pdf_file(
     """
     try:
         data = create_test_pdf_bytes(num_pages=num_pages, title=title)
-        artifact = core.save(data, ".pdf")
+        artifact = benscore.save(data, ".pdf")
     except (OSError, ValueError) as exc:
-        return core.err(f"Could not create the test PDF: {exc}")
+        return benscore.err(f"Could not create the test PDF: {exc}")
 
     result: Dict[str, Any] = {
         "artifact": artifact,
-        "path": str(core.artifact_path(artifact)),
+        "path": str(benscore.artifact_path(artifact)),
         "num_pages": num_pages,
     }
 
     if output_path:
         try:
             result["pdf_path"] = str(
-                core.export_artifact(artifact, output_path, overwrite=True)
+                benscore.export_artifact(artifact, output_path, overwrite=True)
             )
         except OSError as exc:
-            return core.err(f"Could not write to {output_path}: {exc}", **result)
+            return benscore.err(f"Could not write to {output_path}: {exc}", **result)
 
-    return core.ok(**result)
+    return benscore.ok(**result)
 
 
 def main() -> None:
@@ -352,7 +352,7 @@ def main() -> None:
     # Clear out expired and over-cap artifacts once at boot. Cheaper and simpler
     # than a background reaper, and good enough for a per-user workspace.
     try:
-        core.prune()
+        benscore.prune()
     except OSError:
         pass  # housekeeping must never stop the server from starting
 

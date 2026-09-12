@@ -10,6 +10,12 @@ release for somebody.
     python scripts/verify_install.py benspdf-mcp
     python scripts/verify_install.py /path/to/venv/bin/benspdf-mcp
 
+Trailing arguments are passed to the command, so the launcher a client config
+actually uses can be checked as written:
+
+    python scripts/verify_install.py uvx benspdf-mcp
+    python scripts/verify_install.py uvx --from . benspdf-mcp
+
 It speaks the protocol the way a client does: spawn the command, complete the
 handshake, list the tools, then chain two calls so the artifact contract is
 exercised end to end. The workspace is redirected to a temp directory, so a run
@@ -58,10 +64,10 @@ def _payload(result):
     return structured.get("result", structured)
 
 
-async def verify(command: str, workspace: str) -> None:
+async def verify(command: str, args: list[str], workspace: str) -> None:
     params = StdioServerParameters(
         command=command,
-        args=[],
+        args=args,
         env=dict(os.environ, BENSTOOLS_WORKSPACE=workspace),
     )
 
@@ -135,11 +141,11 @@ async def verify(command: str, workspace: str) -> None:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print(__doc__)
         return 2
 
-    command = sys.argv[1]
+    command, args = sys.argv[1], sys.argv[2:]
     resolved = shutil.which(command) or command
     if not os.path.exists(resolved):
         print(f"not found: {command}", file=sys.stderr)
@@ -147,7 +153,7 @@ def main() -> int:
 
     workspace = tempfile.mkdtemp(prefix="benspdf-verify-")
     try:
-        asyncio.run(verify(resolved, workspace))
+        asyncio.run(verify(resolved, args, workspace))
     except Exception as exc:
         print(f"\nFAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

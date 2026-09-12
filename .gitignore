@@ -9,7 +9,9 @@ __pycache__/
 # PDF files (generated for testing)
 *.pdf
 
-docs/
+# Design notes and rejected alternatives: a working document, deliberately local.
+# Everything else under docs/ is published.
+docs/tool-roadmap.md
 
 # Distribution / packaging
 .Python

@@ -36,4 +36,36 @@ jobs:
         run: python -m mypy src
 
       - name: Check formatting
-        run: python -m black --target-version py311 --check src tests
+        run: python -m black --target-version py311 --check src tests scripts
+
+  package:
+    name: Build and verify the installed package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Passing tests prove the source tree works. They say nothing about
+      # whether the built wheel declares its entry point or ships every module
+      # it imports, which is how a release breaks while CI stays green. Catching
+      # that here rather than at release time is the difference between an edit
+      # and a burnt version number.
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          rm -rf dist
+          python -m build
+
+      - name: Check metadata renders
+        run: python -m twine check --strict dist/*
+
+      - name: Install the wheel into a clean environment
+        run: |
+          python -m venv /tmp/check
+          /tmp/check/bin/pip install dist/*.whl
+
+      - name: Verify it serves MCP
+        run: /tmp/check/bin/python scripts/verify_install.py /tmp/check/bin/benspdf-mcp

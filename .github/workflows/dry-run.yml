@@ -1,0 +1,148 @@
+name: Dry run to TestPyPI
+
+# A full rehearsal of a release, against test.pypi.org instead of pypi.org:
+# build, upload, install the uploaded package back down, and drive it as a
+# client would.
+#
+# Why this is a separate file rather than a branch inside release.yml: the
+# TestPyPI URL and the testpypi environment are hardcoded here, with no
+# conditional that could steer a run onto the real index. The build steps are
+# duplicated as the price of that, which is the cheaper mistake.
+#
+# Trigger it by hand from the Actions tab. Nothing runs it automatically.
+on:
+  workflow_dispatch:
+    inputs:
+      dev_suffix:
+        description: >
+          Version suffix for this rehearsal, e.g. dev1. TestPyPI, like PyPI,
+          accepts each version exactly once, so bump this on every run.
+        required: true
+        default: "dev1"
+
+jobs:
+  build:
+    name: Build a dev version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the package and its dev extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" build twine
+
+      - name: Test
+        run: python -m pytest tests/ -q
+
+      # The version is rewritten in the checkout only. Nothing is committed, and
+      # this is how a rehearsal can be repeated: each run uploads 0.1.0.devN
+      # instead of colliding with the 0.1.0 that a real release will claim.
+      - name: Stamp the dev version
+        run: |
+          release=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          dev="${release}.${{ inputs.dev_suffix }}"
+          echo "Rehearsing $release as $dev"
+          python - "$dev" <<'PY'
+          import pathlib, re, sys
+          dev = sys.argv[1]
+          path = pathlib.Path("pyproject.toml")
+          text = path.read_text()
+          text, count = re.subn(
+              r'^version = ".*"$', f'version = "{dev}"', text, count=1, flags=re.M
+          )
+          assert count == 1, "version line not found in pyproject.toml"
+          path.write_text(text)
+          PY
+          echo "DEV_VERSION=$dev" >> "$GITHUB_ENV"
+
+      - name: Build sdist and wheel
+        run: |
+          rm -rf dist
+          python -m build
+
+      - name: Check metadata renders
+        run: python -m twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dry-run-distributions
+          path: dist/
+          if-no-files-found: error
+
+    outputs:
+      dev_version: ${{ env.DEV_VERSION }}
+
+  upload:
+    name: Upload to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/benspdf-mcp
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dry-run-distributions
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  install:
+    name: Install from TestPyPI and verify
+    needs: [build, upload]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # TestPyPI does not mirror the real index, so pypdf, pypdfium2, Pillow and
+      # mcp are not there. --index-url picks up benspdf-mcp from TestPyPI while
+      # --extra-index-url resolves its dependencies from PyPI as normal.
+      #
+      # The retry loop is not paranoia: an upload takes a moment to become
+      # installable, and a first attempt frequently 404s.
+      - name: Install the uploaded package
+        run: |
+          python -m venv /tmp/check
+          for attempt in 1 2 3 4 5; do
+            if /tmp/check/bin/pip install \
+              --index-url https://test.pypi.org/simple/ \
+              --extra-index-url https://pypi.org/simple/ \
+              "benspdf-mcp==${{ needs.build.outputs.dev_version }}"; then
+              echo "installed on attempt $attempt"
+              exit 0
+            fi
+            echo "not installable yet, retrying in 20s"
+            sleep 20
+          done
+          echo "::error::${{ needs.build.outputs.dev_version }} never became installable from TestPyPI"
+          exit 1
+
+      # The point of the whole rehearsal: the artifact that a user would get,
+      # exercised over the protocol a client speaks.
+      - name: Verify it serves MCP
+        run: /tmp/check/bin/python scripts/verify_install.py /tmp/check/bin/benspdf-mcp
+
+      - name: Summarise
+        run: |
+          {
+            echo "### Dry run passed"
+            echo
+            echo "Uploaded and verified \`benspdf-mcp==${{ needs.build.outputs.dev_version }}\` on TestPyPI."
+            echo
+            echo "This rehearses everything \`release.yml\` does. The real release"
+            echo "differs only in the index it uploads to and the version it carries."
+          } >> "$GITHUB_STEP_SUMMARY"

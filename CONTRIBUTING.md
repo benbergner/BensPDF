@@ -66,6 +66,23 @@ to disk yourself:
 
 `create_test_pdf_file` in `mcp_server.py` is a short working example.
 
+## Running the checks the way CI does
+
+CI installs `.[dev]` and nothing else — in particular not the `ollama` extra. A
+development environment that has more installed than that can pass a check CI
+then fails, so when a CI failure will not reproduce, reproduce the environment:
+
+```bash
+python -m venv /tmp/ci && /tmp/ci/bin/pip install -e ".[dev]"
+/tmp/ci/bin/python -m pytest tests/ -q
+/tmp/ci/bin/python -m mypy src
+/tmp/ci/bin/python -m black --target-version py311 --check src tests scripts
+```
+
+Optional dependencies are guarded at their import site and given a mypy
+`ignore_missing_imports` override, so absent is a supported state rather than a
+type error.
+
 ## Checking a build
 
 `pytest` covers the source tree. It says nothing about the built package, which

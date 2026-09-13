@@ -22,6 +22,7 @@ EXPECTED_TOOLS = {
     "pdf_check_access",
     "pdf_page_layout",
     "pdf_render_pages",
+    "pdf_ocr",
     "create_test_pdf_file",
 }
 

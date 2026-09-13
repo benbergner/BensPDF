@@ -181,7 +181,7 @@ def _render_one(document: Any, number: int, dpi: int) -> Dict[str, Any]:
     """
     page = document[number - 1]
     width_pt, height_pt = page.get_size()
-    effective_dpi = _fit_dpi(width_pt, height_pt, dpi)
+    effective_dpi = fit_dpi(width_pt, height_pt, dpi)
 
     bitmap = page.render(scale=effective_dpi / _PT_PER_INCH)
     image = bitmap.to_pil()
@@ -215,11 +215,14 @@ def _clamp_dpi(dpi: Any) -> int:
     return max(_MIN_DPI, min(_MAX_DPI, value))
 
 
-def _fit_dpi(width_pt: float, height_pt: float, dpi: int) -> int:
+def fit_dpi(width_pt: float, height_pt: float, dpi: int) -> int:
     """Reduce resolution for a page whose render would be enormous.
 
     Large format pages are the case: a 34 x 49 inch plan at 150 dpi is 37.8
     megapixels, which is 113 MB of bitmap before it is even encoded.
+
+    Public, unlike its neighbours, because `pdf_ocr` renders too and the two verbs
+    must agree on how large a page is allowed to get.
     """
     longest_pt = max(abs(width_pt), abs(height_pt))
     if longest_pt <= 0:

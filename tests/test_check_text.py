@@ -21,6 +21,7 @@ from pypdf._page import PageObject
 from pypdf.errors import LimitReachedError, PdfReadError
 from pypdf.generic import (
     ArrayObject,
+    BooleanObject,
     DecodedStreamObject,
     DictionaryObject,
     FloatObject,
@@ -102,6 +103,16 @@ def image_page(writer: PdfWriter, text: str = "") -> None:
     if text:
         body += b" " + draw_text(text, y=40)
     add_page(writer, body, {NameObject("/Im1"): image_xobject()})
+
+
+def ocred_page(writer: PdfWriter, text: str = "Chapter page 1. Brown fox.") -> None:
+    """What pdf_ocr leaves behind: the scan, plus a sparse text layer, plus the mark.
+
+    The text is deliberately short of `_TEXT_CHARS`, because that is the case a
+    character count gets wrong and the marker gets right.
+    """
+    image_page(writer, text)
+    writer.pages[-1][NameObject(check_text_module.LAYER_MARKER)] = BooleanObject(True)
 
 
 def illustrated_page(writer: PdfWriter, text: str = "A slide title") -> None:
@@ -287,6 +298,67 @@ class TestScanLookalikes:
 
         assert entry["image_coverage"] == 1.0
         assert entry["looks_scanned"] is True
+
+
+class TestAlreadyOCRed:
+    """A page pdf_ocr has read is not a scan awaiting OCR, however sparse it is.
+
+    The image is still there afterwards - the text layer goes on top of it rather
+    than replacing it - so coverage says "scan" forever and the only signal that
+    changes is the text. On a sparse page that text is under `_TEXT_CHARS`, and the
+    result then contradicted itself: 59 characters extracted, `has_text: false`,
+    verdict "scanned", `needs_ocr: true` for a document that was fully searchable.
+    Seen on a real 25 page scan after a successful pdf_ocr run.
+    """
+
+    def test_a_sparse_ocred_page_is_readable_not_scanned(self, tmp_path):
+        pdf = build(tmp_path / "ocred.pdf", ocred_page, ocred_page)
+
+        data = check_text(pdf)
+
+        assert data["verdict"] == "text"
+        assert data["needs_ocr"] is False
+        assert data["has_text_layer"] is True
+        assert data["ocred_pages"] == 2
+        entry = data["pages"][0]
+        assert entry["characters"] < data["text_threshold_chars"]  # under it, and read
+        assert entry["has_text"] is True
+        assert entry["looks_scanned"] is False
+        assert entry["ocred"] is True
+
+    def test_the_summary_says_the_text_came_from_ocr(self, tmp_path):
+        """It reads like any other text layer and it is a machine's guess, and a
+        second OCR pass would need `force`, so both belong in the sentence."""
+        pdf = build(tmp_path / "ocred.pdf", ocred_page)
+
+        summary = check_text(pdf)["summary"]
+
+        assert "pdf_ocr" in summary
+        assert "force=True" in summary
+
+    def test_a_half_ocred_document_still_needs_the_rest(self, tmp_path):
+        """What OCRing a long document a range at a time leaves behind."""
+        pdf = build(tmp_path / "half.pdf", ocred_page, ocred_page, image_page)
+
+        data = check_text(pdf)
+
+        assert data["verdict"] == "mixed"
+        assert data["needs_ocr"] is True
+        assert data["ocred_pages"] == 2
+        assert data["scanned_pages"] == 1
+        assert "pass the searchable copy back" in data["summary"]
+
+    def test_an_unmarked_sparse_scan_is_still_a_scan(self, tmp_path):
+        """The threshold is not loosened for everyone: a scanner stamp over a page
+        image is exactly the case `_TEXT_CHARS` exists to catch."""
+        pdf = build(tmp_path / "stamped.pdf", lambda w: image_page(w, "Page 1 of 9"))
+
+        data = check_text(pdf)
+
+        assert data["verdict"] == "scanned"
+        assert data["needs_ocr"] is True
+        assert data["ocred_pages"] == 0
+        assert "ocred" not in data["pages"][0]
 
 
 class TestImageGeometry:

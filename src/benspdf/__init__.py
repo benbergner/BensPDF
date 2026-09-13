@@ -12,6 +12,7 @@ from .tools.check_access import check_access
 from .tools.check_text import check_text
 from .tools.create_test_pdf import create_test_pdf, create_test_pdf_bytes
 from .tools.metadata import read_metadata
+from .tools.ocr import ocr
 from .tools.page_count import PDFPageCounterTool, create_tool
 from .tools.page_layout import read_page_layout
 from .tools.render_pages import render_pages
@@ -25,6 +26,7 @@ __all__ = [
     "check_access",
     "read_page_layout",
     "render_pages",
+    "ocr",
     "create_test_pdf",
     "create_test_pdf_bytes",
 ]

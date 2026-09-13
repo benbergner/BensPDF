@@ -103,16 +103,22 @@ check_text("~/Downloads/contract.pdf")
 
 A page counts as scanned when one image covers most of it. That distinction
 matters: a brochure page with three photos and a heading has images and barely
-any text too, and it is not a scan. Coverage is measured from the page's
-transformation matrices, so no image data is decoded.
+any text too, and it is not a scan. Coverage comes from the page's own geometry
+rather than from decoding the images, so this stays fast on a big scan.
 
 Long documents are sampled — up to 10 pages spread across the file, ends
 included — which keeps a 2000-page scan as cheap as a short one and makes the
 answer an estimate. `sampled` tells you when that happened, and `pages` lists
 what was actually read.
 
-`text_excerpt` is there for the case a character count can't catch: text that
-exists but came out of OCR as gibberish.
+`text_excerpt` shows you the first of the text itself, so you can tell real text
+from text that came out of some earlier OCR as gibberish.
+
+Run this on a copy you made with `pdf_ocr` and it says `text`, not `scanned`, even
+though the scanned image is still there underneath. Those pages are marked `ocred:
+true`, which is worth knowing when you read them: the text is what OCR made of the
+page, so it can hold recognition errors. `ocred_pages` counts them, and a document
+you only OCR'd part of comes back `mixed`, with the rest still needing a pass.
 
 ## `pdf_check_access(ref)`
 
@@ -144,15 +150,14 @@ check_access("~/Downloads/contract.pdf")
             'not a lock: the file is already open, so nothing enforces them.'}
 ```
 
-`encrypted` and `needs_password` are deliberately separate. Encryption sounds like
-a locked door, and usually isn't one: of 141 files here, 8 were encrypted and none
-needed a password. They open silently and simply carry restrictions.
+`encrypted` and `needs_password` are deliberately separate, because encryption
+sounds like a locked door and usually isn't one. Most encrypted PDFs open without
+anyone typing a password; they just carry restrictions.
 
-Those restrictions are a request to viewers, not a lock. Six of those 8 files
-declare that text may not be copied, and `pdf_check_text` reads their text without
-resistance. So the summary states the restriction and its advisory nature
-together, and it's worth passing that on rather than telling someone an action is
-impossible.
+Those restrictions are a request to viewers, not a lock. A file that declares its
+text may not be copied will still hand its text to `pdf_check_text` — and to most
+other software. So the summary states the restriction *and* that nothing enforces
+it, which is worth repeating rather than telling someone an action is impossible.
 
 `permissions_valid` is `None` unless there was a real check to run. Only AES-256
 stores a signed copy of the permission bits; pypdf reports `True` for weaker
@@ -250,14 +255,139 @@ For *reading* a scan, OCR is the better path: a text layer is searchable, cheap 
 re-read, and works with a local text model, which no image does. Render when OCR
 isn't available or would mangle what matters.
 
-Rasterizing can't be made cheap by sampling, so the limits are explicit and always
-reported: 20 pages per call, and resolution reduced for a page that would be
-enormous. One file in a 141-file corpus is 34 x 49 inches, which at 150 dpi would
-be 37.8 megapixels and 113 MB of bitmap for one page; it comes back at 82 dpi with
-`dpi_reduced_from: 150` and a note in the summary.
+Every page is drawn in full, so the limits are explicit and always reported: 20 pages
+per call, and a resolution that keeps the bitmap to a sane size. A poster-sized page
+at 150 dpi runs to tens of megapixels, so it comes back at whatever dpi fits, with
+`dpi_reduced_from` and a note in the summary saying so.
 
 The page it draws is the page `pdf_page_layout` measures — CropBox, with `/Rotate`
 applied — so a rotated page renders the way it presents.
+
+## `pdf_ocr(ref, pages=None, lang="eng", dpi=200, output="text", force=False)`
+
+Reads pages that carry no text, and can hand back a copy of the document with a real
+text layer added.
+
+```python
+from benspdf import ocr
+
+ocr("~/Downloads/scan.pdf", output="both")
+```
+
+```python
+{'success': True,
+ 'file_name': 'scan.pdf',
+ 'page_count': 1,
+ 'language': 'eng',
+ 'dpi': 200,
+ 'tesseract_version': '5.5.2',
+ 'pages': [{'page': 1,
+            'text': 'Quarterly Report\nRevenue rose 12 percent in the third '
+                    'quarter,\ndriven by renewals in the enterprise segment.\n'
+                    'Costs were flat.',
+            'chars': 125, 'words': 20,
+            'mean_confidence': 96.7, 'low_confidence_words': 0, 'dpi': 200}],
+ 'pages_read': 1,
+ 'truncated': False,
+ 'skipped': [],
+ 'failed': [],
+ 'words': 20,
+ 'mean_confidence': 96.7,
+ 'low_confidence_words': 0,
+ 'artifact': 'art_c87d9159.pdf',
+ 'path': '/Users/you/.benstools/work/art_c87d9159.pdf',
+ 'size_bytes': 79944,
+ 'text_layer_pages': '1',
+ 'summary': 'Read 1 page of scan.pdf (page 1) with OCR at 200 dpi in eng: 20 words, '
+            'mean confidence 96.7 out of 100. A searchable copy of scan.pdf is '
+            'artifact art_c87d9159.pdf, with the text layer on page 1; pass it to '
+            'export to keep it.'}
+```
+
+`output` picks what you get: `"text"` for the text alone, `"pdf"` for the searchable
+copy as an artifact, `"both"` for both. The copy is your original document with an
+invisible text layer laid over each page. The scan itself is untouched, so the pages
+still look exactly as they did and the file barely grows, but the text now selects,
+searches and copies like any other PDF's.
+
+### Installing tesseract
+
+OCR needs [tesseract](https://github.com/tesseract-ocr/tesseract), which is a program
+rather than a Python package, so installing this one doesn't bring it:
+
+```bash
+brew install tesseract            # macOS
+sudo apt install tesseract-ocr    # Debian, Ubuntu
+winget install UB-Mannheim.TesseractOCR   # Windows
+```
+
+You only need it if you want OCR. It's looked for when you call `pdf_ocr`, not at
+startup, so every other tool works without it and installing it later needs no
+reinstall or restart. Until it's there you get an error saying so, with the command
+for your platform and a pointer to `pdf_render_pages` in the meantime. If yours lives
+somewhere unusual, set `BENSPDF_TESSERACT` to its full path.
+
+Languages are installed separately. `lang="deu"` on a machine with only English gives
+you an error naming the languages you do have, rather than quietly reading German as
+English and handing back plausible nonsense. `brew install tesseract-lang` adds all of
+them; on Debian it's one package per language, like `tesseract-ocr-deu`. Several at
+once is `lang="eng+deu"`.
+
+### How much to trust it
+
+On clean printed text it's accurate enough to read and quote. Faint photocopies and
+phone photos come back weaker, and handwriting, signatures, text inside charts and
+mathematical notation are beyond it — for those, look at the page with
+`pdf_render_pages`.
+
+Check `mean_confidence`, out of 100, alongside `low_confidence_words` out of `words`.
+High nineties is normal for printed text. It's the number that tells you when to look
+at the page yourself, because unreliable OCR still reads fluently: a page scanned in
+upside down comes back as confident-sounding nonsense with a confidence score in the
+forties.
+
+`dpi` defaults to 200, the sweet spot for printed text. Raise it when small print
+comes back badly; higher settings mostly buy time rather than accuracy.
+
+A page stored sideways is read normally, and its text comes back with the rest.
+Placing a layer on it needs the page upright first, so it's listed in
+`text_layer_skipped`.
+
+### Pages it skips
+
+A page that already has text is left as it is and listed in `skipped` with how much
+text it holds, since its text can be read directly. `force=True` OCRs it anyway,
+which is what you want when the text that's there came out of some other OCR as
+gibberish — `pdf_check_text` shows you the difference.
+
+A page that fails is listed in `failed` with its reason, and the rest of the document
+comes back as usual.
+
+### Long documents
+
+Most documents are one call. A call reads up to 50 pages and spends up to 40 seconds
+recognizing, whichever runs out first, then hands back what it has along with the
+pages it did not reach — so a long or slow scan comes back in a few rounds rather
+than in one wait your MCP client won't sit through. Pages vary a lot: a clean form
+page is quick, a dense or noisy scan can take ten times as long.
+
+When a call stops early you get `truncated: True`, `pages_remaining` naming what is
+left, and a summary spelling out the next call. Each call adds its text layer to the
+copy you hand it, so continue by passing the previous result back in and the layers
+accumulate in one document:
+
+```python
+first = ocr("book.pdf", pages="all", output="pdf")
+first["pages_remaining"]                  # '38-90'
+second = ocr(first["path"], pages="38-90", output="pdf")
+second["pages_remaining"]                 # '81-90'
+third = ocr(second["path"], pages="81-90", output="pdf")
+# third["artifact"] is book.pdf with all 90 pages searchable
+```
+
+Over MCP you pass the artifact id along instead of the path, and the model can run
+the loop itself. Ranges may overlap: a page that already has its layer is skipped,
+so `pages="30-90"` in the second call would have worked just as well.
 
 ## `create_test_pdf_file(output_path=None, num_pages=3, title=None)`
 

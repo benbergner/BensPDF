@@ -31,6 +31,7 @@ from benspdf import (
     PDFPageCounterTool,
     check_access,
     check_text,
+    ocr,
     read_metadata,
     read_page_layout,
     render_pages,
@@ -43,7 +44,7 @@ except PackageNotFoundError:  # running from a source checkout
     _VERSION = "0.0.0.dev0"
 
 #: The contract every tool shares, sent once with the server rather than repeated
-#: in seven descriptions. Each tool still calls its `ref` a path or artifact id,
+#: in eight descriptions. Each tool still calls its `ref` a path or artifact id,
 #: because not every client passes these instructions to the model, and that one
 #: fact is the only part a model cannot recover from a result.
 INSTRUCTIONS = """BensPDF reads and edits PDFs on the user's own machine. \
@@ -305,6 +306,54 @@ def pdf_render_pages(
         )
 
     return _as_result(result, images=[entry["artifact"] for entry in shown])
+
+
+@mcp.tool()
+def pdf_ocr(
+    ref: str,
+    pages: Optional[str] = None,
+    lang: str = "eng",
+    dpi: int = 200,
+    output: str = "text",
+    force: bool = False,
+) -> Dict[str, Any]:
+    """Read a scanned PDF with OCR, and optionally add a real text layer to it.
+
+    The way to read a page with no text: a scan, or an export that lost its text. Prefer it to pdf_render_pages for reading; run pdf_check_text when unsure.
+    Tesseract is a system install, and a missing binary or language errors with how
+    to install it.
+
+    OCR can be confidently wrong, so pages report `mean_confidence` and
+    `low_confidence_words`: say when confidence is low rather than presenting text as
+    certain, and look at a bad page with pdf_render_pages.
+
+    Text pages are skipped unless `force`. A long document may stop early; when
+    `truncated`, do exactly what the summary says, artifact and range included.
+
+    Args:
+        ref: PDF file path, or a workspace artifact id.
+        pages: Which pages: "1-10", "3", "1,5,9-12" or "all". Defaults to all.
+        lang: Tesseract language code, or several as "eng+deu".
+        dpi: Resolution, 72 to 600. 200 suits printed text; higher is slower, not
+            better.
+        output: "text", "pdf" for a searchable copy as an artifact, or "both".
+        force: OCR pages that already have text instead of skipping them.
+    """
+    try:
+        resolved = benscore.resolve(ref)
+    except benscore.ArtifactNotFound as exc:
+        return benscore.err(str(exc), file_exists=False)
+    except (FileNotFoundError, IsADirectoryError) as exc:
+        return benscore.err(str(exc), file_path=str(ref), file_exists=False)
+
+    return ocr(
+        str(resolved),
+        pages=pages,
+        lang=lang,
+        dpi=dpi,
+        output=output,
+        force=force,
+    )
 
 
 @mcp.tool()

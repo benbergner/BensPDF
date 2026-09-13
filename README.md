@@ -47,10 +47,18 @@ client, or to do it by hand, see [Setup](#setup).
 | `pdf_page_layout` | Page sizes, orientation, rotation and page boxes |
 | `pdf_check_access` | Encryption, and what the file permits: printing, copying, editing |
 | `pdf_render_pages` | Renders pages to images, so a page can be looked at |
+| `pdf_ocr` | Reads a scan with OCR, and can add a searchable text layer to it |
 | `create_test_pdf_file` | Generates a throwaway PDF, handy for trying things out |
 | `export` | Saves results to a real location on disk |
 | `list_artifacts` | Lists recent temporary results |
 | `discard` | Deletes temporary results now |
+
+Every tool but one needs nothing beyond the package. `pdf_ocr` uses
+[tesseract](https://github.com/tesseract-ocr/tesseract), a system program rather
+than a Python package, and only looks for it when you actually call it — so
+install it if and when you want OCR (`brew install tesseract`, `sudo apt install
+tesseract-ocr`, or `winget install UB-Mannheim.TesseractOCR`), and everything else
+works either way.
 
 ## Where results go
 

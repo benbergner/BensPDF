@@ -45,6 +45,7 @@ from pypdf.generic import ContentStream
 
 from benscore import err, ok
 from .metadata import read_metadata
+from .ocr import LAYER_MARKER
 
 #: How many pages to examine, however long the document is.
 _MAX_SAMPLED_PAGES = 10
@@ -52,6 +53,10 @@ _MAX_SAMPLED_PAGES = 10
 #: Characters on a page before its text counts as a real text layer. Scans often
 #: carry a little text — a scanner stamp, a stapled-on cover page, a page number
 #: — and treating any text at all as a text layer would call those readable.
+#:
+#: It is a threshold, so it cannot recognize a sparse page that genuinely holds
+#: nothing but two lines: a title page, a form, a chapter opener. That is the one
+#: case where this verb has better evidence than a count — see `LAYER_MARKER`.
 _TEXT_CHARS = 100
 
 #: Share of the page a single image must cover for the page to look like a scan
@@ -148,6 +153,7 @@ def check_text(pdf_path: str) -> Dict[str, Any]:
 
     pages_with_text = sum(1 for entry in pages if entry["has_text"])
     scanned_pages = sum(1 for entry in pages if entry["looks_scanned"])
+    ocred_pages = sum(1 for entry in pages if entry.get("ocred"))
     unreadable_pages = sum(1 for entry in pages if "error" in entry)
     characters = sum(entry["characters"] for entry in pages)
 
@@ -169,6 +175,7 @@ def check_text(pdf_path: str) -> Dict[str, Any]:
             pages=pages,
             pages_with_text=pages_with_text,
             scanned_pages=scanned_pages,
+            ocred_pages=ocred_pages,
             suggests_ocr=suggests_ocr,
             suggests_scanner=suggests_scanner,
         ),
@@ -177,6 +184,7 @@ def check_text(pdf_path: str) -> Dict[str, Any]:
         pages=pages,
         pages_with_text=pages_with_text,
         scanned_pages=scanned_pages,
+        ocred_pages=ocred_pages,
         unreadable_pages=unreadable_pages,
         characters_sampled=characters,
         mean_characters_per_page=round(characters / len(pages), 1) if pages else 0.0,
@@ -235,12 +243,33 @@ def _examine(page: Any, index: int) -> Tuple[Dict[str, Any], str]:
     except Exception:  # noqa: BLE001 - unknown geometry, not zero geometry
         images, coverage = 0, None
 
+    ocred = _ocred_here(page)
+
     entry["characters"] = len(text)
     entry["images"] = images
     entry["image_coverage"] = coverage
-    entry["has_text"] = len(text) >= _TEXT_CHARS
-    entry["looks_scanned"] = _looks_scanned(len(text), images, coverage)
+    # A page `pdf_ocr` has read carries text whatever the count says, and is not a
+    # scan awaiting OCR however much it still looks like one - the image is still
+    # there, because the text layer went on top of it rather than replacing it.
+    entry["has_text"] = bool(text) if ocred else len(text) >= _TEXT_CHARS
+    entry["looks_scanned"] = not ocred and _looks_scanned(len(text), images, coverage)
+    if ocred:
+        entry["ocred"] = True
     return entry, text
+
+
+def _ocred_here(page: Any) -> bool:
+    """Has `pdf_ocr` already given this page a text layer?
+
+    The one signal here that is a fact rather than an inference. Without it a page
+    holding the six words OCR found on it reads as 0 of 100 characters over a
+    full-page image - which is the description of a scan, and would tell a caller to
+    OCR a page that has just been OCRed.
+    """
+    try:
+        return LAYER_MARKER in page
+    except Exception:  # noqa: BLE001 - see the module docstring
+        return False
 
 
 def _looks_scanned(characters: int, images: int, coverage: Optional[float]) -> bool:
@@ -477,6 +506,7 @@ def _summary(
     pages: List[Dict[str, Any]],
     pages_with_text: int,
     scanned_pages: int,
+    ocred_pages: int,
     suggests_ocr: bool,
     suggests_scanner: bool,
 ) -> str:
@@ -489,7 +519,21 @@ def _summary(
             f"{_agree(pages_with_text, 'carries', 'carry')} an extractable text "
             f"layer, so the text can be read directly."
         ]
-        if suggests_ocr:
+        if ocred_pages:
+            # Worth saying plainly: the text reads like any other text layer, and it
+            # is a machine's reading of a picture, which anyone quoting it should
+            # know. It also stops a caller OCRing a document that is already done.
+            whose = (
+                "All of them"
+                if ocred_pages == pages_with_text
+                else f"{_pages(ocred_pages)} of those"
+            )
+            parts.append(
+                f"{whose} got that layer from pdf_ocr, so the text is recognition "
+                f"output rather than the document's own and can hold recognition "
+                f"errors; running OCR again would need force=True."
+            )
+        elif suggests_ocr:
             parts.append(
                 "The writing tool suggests that text came from OCR, so it may "
                 "contain recognition errors — check the excerpt."
@@ -509,6 +553,14 @@ def _summary(
             f"by a single image, so this document mixes both and OCR would only "
             f"help the scanned pages."
         ]
+        if ocred_pages:
+            # The half-finished case, which a range at a time makes common: naming
+            # what is left keeps the next call from starting over.
+            parts.append(
+                f"{_pages(ocred_pages)} of the readable ones were read by pdf_ocr "
+                f"already, so OCR the rest and pass the searchable copy back as the "
+                f"ref so one document ends up carrying every layer."
+            )
     elif examined:
         parts = [
             f"None of {_pages(examined)} examined yielded text, and none is "

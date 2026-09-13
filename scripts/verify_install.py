@@ -45,6 +45,7 @@ EXPECTED_TOOLS = {
     "pdf_check_access",
     "pdf_check_text",
     "pdf_metadata",
+    "pdf_ocr",
     "pdf_page_count",
     "pdf_page_layout",
     "pdf_render_pages",

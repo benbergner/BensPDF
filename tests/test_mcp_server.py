@@ -1,5 +1,6 @@
 """Tests for MCP server functionality."""
 
+import inspect
 import io
 from pathlib import Path
 
@@ -61,6 +62,21 @@ class TestToolDescriptions:
             assert len(tool.description) <= self.MAX_DESCRIPTION_CHARS, (
                 f"{tool.name} description is {len(tool.description)} chars; move "
                 f"anything shared into the server instructions"
+            )
+
+    @pytest.mark.asyncio
+    async def test_descriptions_do_not_ship_their_source_indentation(self):
+        """The same source must describe a tool identically on every interpreter.
+
+        Python 3.13 dedents docstrings at compile time and 3.11 and 3.12 do not, so
+        an indented description costs four spaces a line on the older two - real
+        tokens, and a length that passes its budget on one runner and fails on the
+        next. `mcp_server.tool` normalizes them; this is what keeps it applied.
+        """
+        for tool in await mcp.list_tools():
+            assert tool.description == inspect.cleandoc(tool.description), (
+                f"{tool.name} description carries its source indentation; register "
+                f"it with @tool() rather than @mcp.tool()"
             )
 
     @pytest.mark.asyncio

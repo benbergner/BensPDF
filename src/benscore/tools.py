@@ -6,12 +6,38 @@ are not about any particular file type: exporting results the user wants to
 keep, listing what is in the workspace, and throwing things away.
 """
 
+import inspect
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 from . import store
 from .errors import ArtifactNotFound, ExportConflict
 from .results import err, ok
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def tool(mcp: Any) -> Callable[[F], F]:
+    """Register a verb on `mcp`, dedenting its docstring before it becomes a
+    description.
+
+    Python 3.13 strips a docstring's common indentation at compile time and
+    earlier versions hand it over as written, so the same source ships a
+    description four spaces wider per line on 3.11 and 3.12 - whitespace a model
+    pays for on every turn, and the reason a description can measure inside its
+    budget on one interpreter and over it on another. Normalizing at registration
+    means every client receives the same text whatever Python is serving it.
+
+    Every package that contributes verbs should register them through this rather
+    than `mcp.tool()` directly.
+    """
+
+    def register(func: F) -> F:
+        if func.__doc__:
+            func.__doc__ = inspect.cleandoc(func.__doc__)
+        return mcp.tool()(func)  # type: ignore[no-any-return]
+
+    return register
 
 
 def _as_list(refs: Union[str, List[str]]) -> List[str]:
@@ -38,7 +64,7 @@ def _format_name(template: str, index: int, artifact_id: str) -> str:
 def register(mcp: Any) -> None:
     """Register the core tools on an MCP server."""
 
-    @mcp.tool()
+    @tool(mcp)
     def export(
         refs: Union[str, List[str]],
         dest: str,
@@ -111,7 +137,7 @@ def register(mcp: Any) -> None:
         except OSError as exc:
             return err(f"Could not write to {dest}: {exc}")
 
-    @mcp.tool()
+    @tool(mcp)
     def list_artifacts(limit: int = 20) -> Dict[str, Any]:
         """List recent temporary artifacts in the workspace, newest first.
 
@@ -129,7 +155,7 @@ def register(mcp: Any) -> None:
         except OSError as exc:
             return err(f"Could not read the workspace: {exc}")
 
-    @mcp.tool()
+    @tool(mcp)
     def discard(refs: Union[str, List[str]]) -> Dict[str, Any]:
         """Delete temporary artifacts from the workspace now.
 

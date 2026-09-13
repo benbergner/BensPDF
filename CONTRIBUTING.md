@@ -66,7 +66,35 @@ to disk yourself:
 
 `create_test_pdf_file` in `mcp_server.py` is a short working example.
 
+## Before pushing
+
+One command runs everything a GitHub runner will run:
+
+```bash
+python scripts/preflight.py
+```
+
+That checks the versions agree, runs the tests, mypy and black, runs the tests a
+second time with tesseract hidden the way the runner has it, then builds a wheel
+and drives the installed result as a client. About 30 seconds, and it ends in
+`Ready to push.` or the list of what failed. It builds into a temp directory, so
+`dist/` is left as it was.
+
+Any Python will do, including one with nothing installed: the checks do not run
+in the interpreter you start it with. It keeps its own environment in
+`.preflight/`, holding `.[dev]` and nothing else, built on the first run and
+reused after — which is the whole point, since an environment with more
+installed than CI has can pass a check CI then fails. It is rebuilt when
+`pyproject.toml` changes.
+
+`--python 3.11 3.13` adds those interpreters from the CI matrix, a venv each.
+`--quick` skips the build for a fast pass while editing. `--no-venv` runs the
+checks in the current interpreter, for when that is the environment you are
+trying to test.
+
 ## Running the checks the way CI does
+
+The individual commands, for when a failure needs to be picked apart.
 
 CI installs `.[dev]` and nothing else — in particular not the `ollama` extra. A
 development environment that has more installed than that can pass a check CI
@@ -105,6 +133,10 @@ scripts/verify_install.py benspdf-mcp
 ```
 
 ## Releasing
+
+Run `scripts/preflight.py` first: its version check is the same gate
+`release.yml` applies, and there it runs after the upload that cannot be taken
+back. It prints the tag to create.
 
 Three workflows under `.github/workflows/`:
 

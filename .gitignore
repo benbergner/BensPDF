@@ -154,6 +154,10 @@ activemq-data/
 # SageMath parsed files
 *.sage.py
 
+# The environment scripts/preflight.py keeps for itself, holding .[dev] and
+# nothing else, so a local check sees what CI sees.
+.preflight/
+
 # Environments
 .env
 .envrc

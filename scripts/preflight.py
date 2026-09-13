@@ -6,9 +6,9 @@ in `release.yml` before anything reaches PyPI. Running them locally first is the
 difference between finding a problem in half a minute and finding it in a release
 that has already published half of itself.
 
-    python scripts/preflight.py                     # the usual pass
-    python scripts/preflight.py --python 3.11 3.13  # add the CI matrix
-    python scripts/preflight.py --quick             # source checks only
+    python scripts/preflight.py                # the usual pass
+    python scripts/preflight.py --python 3.12  # add the rest of the CI matrix
+    python scripts/preflight.py --quick        # source checks only
 
 Run it with any Python you have. It does not use the interpreter it was started
 with: it keeps its own environment in `.preflight/`, holding `.[dev]` and nothing
@@ -16,11 +16,14 @@ else, which is what CI installs. That is the point of running these locally at
 all - a development environment with more installed than CI has can pass a check
 CI then fails, and one with less fails checks that are fine.
 
-Two of these are worth naming, because a plain `pytest` run cannot catch either.
-The suite runs a second time with tesseract hidden, since the runner has no
-tesseract and `release.yml` tests before it publishes. And the built wheel is
+Three of these are worth naming, because a plain `pytest` run cannot catch any of
+them. The suite runs a second time with tesseract hidden, since the runner has no
+tesseract and `release.yml` tests before it publishes. The built wheel is
 installed into a clean environment and driven as a client, since a new module
-missing from the artifact still passes every test in the checkout.
+missing from the artifact still passes every test in the checkout. And it runs
+once more on the oldest supported Python, because interpreters differ in ways a
+test can depend on without saying so - `.preflight/` is built from the newest
+Python installed, which is the half of the matrix least likely to complain.
 
 It builds into a temporary directory and leaves `dist/` alone, so a run cannot
 put a half-built artifact where a release would look for one.
@@ -76,7 +79,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         nargs="+",
         metavar="X.Y",
         default=[],
-        help="also run tests and mypy on these versions, e.g. 3.11 3.13",
+        help="more versions to run tests and mypy on; the oldest supported one "
+        "is always included",
     )
     parser.add_argument(
         "--quick",
@@ -219,13 +223,36 @@ def _checks(
             ("tests without tesseract", lambda: _check_without_tesseract(python))
         )
 
-    for version in args.python:
+    for version in _also_run(python, args.python):
         checks.append((f"python {version}", lambda v=version: _check_version(v)))
 
     if not args.quick:
         checks.append(("built package", lambda: _check_package(python)))
 
     return checks
+
+
+def _also_run(python: str, asked: Sequence[str]) -> List[str]:
+    """Which interpreters to check besides the one the checks just ran on.
+
+    The oldest supported version comes for free even when nothing was asked for,
+    because a difference between interpreters shows up at that end: Python 3.13
+    dedents docstrings at compile time and 3.11 does not, which let a tool
+    description measure inside its budget here and over it on the runner. The
+    checks above run on whatever built `.preflight/`, usually the newest Python
+    installed, so on its own it tests the friendly half of the matrix.
+    """
+    wanted = list(asked)
+    oldest = SUPPORTED[-1]
+    if oldest not in wanted and _minor_of(python) != oldest:
+        wanted.append(oldest)
+    return wanted
+
+
+def _minor_of(python: str) -> str:
+    """An interpreter's X.Y, from the "Python X.Y.Z" `_version_of` reports."""
+    digits = _version_of(python).split()[-1]
+    return ".".join(digits.split(".")[:2])
 
 
 def _check_versions() -> None:

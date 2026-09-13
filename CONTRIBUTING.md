@@ -75,10 +75,10 @@ python scripts/preflight.py
 ```
 
 That checks the versions agree, runs the tests, mypy and black, runs the tests a
-second time with tesseract hidden the way the runner has it, then builds a wheel
-and drives the installed result as a client. About 30 seconds, and it ends in
-`Ready to push.` or the list of what failed. It builds into a temp directory, so
-`dist/` is left as it was.
+second time with tesseract hidden the way the runner has it, runs them once more
+on the oldest Python we support, then builds a wheel and drives the installed
+result as a client. Under a minute, and it ends in `Ready to push.` or the list of
+what failed. It builds into a temp directory, so `dist/` is left as it was.
 
 Any Python will do, including one with nothing installed: the checks do not run
 in the interpreter you start it with. It keeps its own environment in
@@ -87,8 +87,14 @@ reused after — which is the whole point, since an environment with more
 installed than CI has can pass a check CI then fails. It is rebuilt when
 `pyproject.toml` changes.
 
-`--python 3.11 3.13` adds those interpreters from the CI matrix, a venv each.
-`--quick` skips the build for a fast pass while editing. `--no-venv` runs the
+The oldest supported interpreter is included because the versions genuinely differ:
+Python 3.13 dedents docstrings at compile time and 3.11 does not, so a tool
+description can measure inside its budget on one and over it on the other.
+`.preflight/` is built from the newest Python you have, so on its own it tests the
+half of the matrix least likely to complain.
+
+`--python 3.12` adds the interpreters in between, a venv each. `--quick` skips the
+build for a fast pass while editing. `--no-venv` runs the
 checks in the current interpreter, for when that is the environment you are
 trying to test.
 

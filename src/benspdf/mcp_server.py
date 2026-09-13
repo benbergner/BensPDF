@@ -27,6 +27,7 @@ from mcp.types import CallToolResult, TextContent
 
 import benscore
 from benscore import tools as core_tools
+from benscore.tools import tool
 from benspdf import (
     PDFPageCounterTool,
     check_access,
@@ -108,7 +109,7 @@ core_tools.register(mcp)
 pdf_counter = PDFPageCounterTool()
 
 
-@mcp.tool()
+@tool(mcp)
 def pdf_page_count(ref: str) -> Dict[str, Any]:
     """Count the pages in a PDF. Answers "how many pages is this?".
 
@@ -128,7 +129,7 @@ def pdf_page_count(ref: str) -> Dict[str, Any]:
     return pdf_counter.count_pages(str(resolved))
 
 
-@mcp.tool()
+@tool(mcp)
 def pdf_metadata(ref: str) -> Dict[str, Any]:
     """Read a PDF's document properties: title, author, dates, producer, keywords.
 
@@ -156,7 +157,7 @@ def pdf_metadata(ref: str) -> Dict[str, Any]:
     return read_metadata(str(resolved))
 
 
-@mcp.tool()
+@tool(mcp)
 def pdf_check_text(ref: str) -> Dict[str, Any]:
     """Check whether a PDF has a text layer, looks scanned, or needs OCR.
 
@@ -187,7 +188,7 @@ def pdf_check_text(ref: str) -> Dict[str, Any]:
     return check_text(str(resolved))
 
 
-@mcp.tool()
+@tool(mcp)
 def pdf_extract_text(
     ref: str,
     pages: Optional[str] = None,
@@ -227,7 +228,7 @@ def pdf_extract_text(
     return extract_text(str(resolved), pages=pages, output=output, layout=layout)
 
 
-@mcp.tool()
+@tool(mcp)
 def pdf_check_access(ref: str) -> Dict[str, Any]:
     """Check a PDF's encryption and what it permits: printing, copying, editing.
 
@@ -262,7 +263,7 @@ def pdf_check_access(ref: str) -> Dict[str, Any]:
     return check_access(str(resolved))
 
 
-@mcp.tool()
+@tool(mcp)
 def pdf_page_layout(ref: str, pages: Optional[str] = None) -> Dict[str, Any]:
     """Measure a PDF's page sizes, orientation and rotation.
 
@@ -297,7 +298,7 @@ def pdf_page_layout(ref: str, pages: Optional[str] = None) -> Dict[str, Any]:
     return read_page_layout(str(resolved), pages)
 
 
-@mcp.tool()
+@tool(mcp)
 def pdf_render_pages(
     ref: str,
     pages: Optional[str] = None,
@@ -349,7 +350,7 @@ def pdf_render_pages(
     return _as_result(result, images=[entry["artifact"] for entry in shown])
 
 
-@mcp.tool()
+@tool(mcp)
 def pdf_ocr(
     ref: str,
     pages: Optional[str] = None,
@@ -397,7 +398,7 @@ def pdf_ocr(
     )
 
 
-@mcp.tool()
+@tool(mcp)
 def create_test_pdf_file(
     output_path: Optional[str] = None,
     num_pages: int = 3,

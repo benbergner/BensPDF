@@ -44,6 +44,7 @@ EXPECTED_TOOLS = {
     "list_artifacts",
     "pdf_check_access",
     "pdf_check_text",
+    "pdf_extract_text",
     "pdf_metadata",
     "pdf_ocr",
     "pdf_page_count",

@@ -44,6 +44,7 @@ client, or to do it by hand, see [Setup](#setup).
 | `pdf_page_count` | Counts the pages in a PDF |
 | `pdf_metadata` | Reads document properties: title, author, dates, producer |
 | `pdf_check_text` | Says whether a PDF is readable text or a scan that needs OCR |
+| `pdf_extract_text` | Reads the text a PDF holds, page by page |
 | `pdf_page_layout` | Page sizes, orientation, rotation and page boxes |
 | `pdf_check_access` | Encryption, and what the file permits: printing, copying, editing |
 | `pdf_render_pages` | Renders pages to images, so a page can be looked at |

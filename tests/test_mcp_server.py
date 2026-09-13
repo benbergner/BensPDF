@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from pypdf import PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from benspdf import create_test_pdf, create_test_pdf_bytes
 from benscore import store
@@ -19,6 +20,7 @@ EXPECTED_TOOLS = {
     "pdf_page_count",
     "pdf_metadata",
     "pdf_check_text",
+    "pdf_extract_text",
     "pdf_check_access",
     "pdf_page_layout",
     "pdf_render_pages",
@@ -194,6 +196,90 @@ class TestPdfCheckTextTool:
     @pytest.mark.asyncio
     async def test_expired_artifact_gives_actionable_error(self, call_tool):
         data = await call_tool(mcp, "pdf_check_text", {"ref": "art_deadbeef.pdf"})
+
+        assert data["success"] is False
+        assert "Re-run" in data["error"]
+
+
+class TestPdfExtractTextTool:
+    """pdf_extract_text over the MCP boundary. The budgets and the suspect-text
+    signals live in test_extract_text.py; this covers the wiring."""
+
+    @staticmethod
+    def _with_text(path: Path, *bodies: str) -> str:
+        """A PDF whose pages carry text, which the blank test PDF does not."""
+        writer = PdfWriter()
+        for body in bodies:
+            page = writer.add_blank_page(width=612, height=792)
+            stream = DecodedStreamObject()
+            stream.set_data(
+                b"BT /F1 12 Tf 72 720 Td (" + body.encode("latin-1") + b") Tj ET"
+            )
+            page[NameObject("/Contents")] = stream
+            page[NameObject("/Resources")] = DictionaryObject(
+                {
+                    NameObject("/Font"): DictionaryObject(
+                        {
+                            NameObject("/F1"): DictionaryObject(
+                                {
+                                    NameObject("/Type"): NameObject("/Font"),
+                                    NameObject("/Subtype"): NameObject("/Type1"),
+                                    NameObject("/BaseFont"): NameObject("/Helvetica"),
+                                }
+                            )
+                        }
+                    )
+                }
+            )
+        buffer = io.BytesIO()
+        writer.write(buffer)
+        path.write_bytes(buffer.getvalue())
+        return str(path)
+
+    @pytest.mark.asyncio
+    async def test_reads_a_path(self, tmp_path, call_tool):
+        pdf = self._with_text(tmp_path / "text.pdf", "first page", "second page")
+
+        data = await call_tool(mcp, "pdf_extract_text", {"ref": pdf})
+
+        assert data["success"] is True
+        assert [entry["text"] for entry in data["pages"]] == [
+            "first page",
+            "second page",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_range_and_an_artifact_come_back(self, tmp_path, call_tool):
+        pdf = self._with_text(tmp_path / "text.pdf", "one", "two", "three")
+
+        data = await call_tool(
+            mcp, "pdf_extract_text", {"ref": pdf, "pages": "2-3", "output": "txt"}
+        )
+
+        assert data["pages_read"] == 2
+        assert store.resolve(data["artifact"]).read_text() == "two\fthree"
+
+    @pytest.mark.asyncio
+    async def test_accepts_an_artifact_id(self, call_tool):
+        artifact = store.save(create_test_pdf_bytes(num_pages=2), ".pdf")
+
+        data = await call_tool(mcp, "pdf_extract_text", {"ref": artifact})
+
+        assert data["success"] is True
+        assert data["page_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_missing_file_reports_cleanly(self, call_tool):
+        data = await call_tool(
+            mcp, "pdf_extract_text", {"ref": "/nonexistent/file.pdf"}
+        )
+
+        assert data["success"] is False
+        assert data["file_exists"] is False
+
+    @pytest.mark.asyncio
+    async def test_expired_artifact_gives_actionable_error(self, call_tool):
+        data = await call_tool(mcp, "pdf_extract_text", {"ref": "art_deadbeef.pdf"})
 
         assert data["success"] is False
         assert "Re-run" in data["error"]

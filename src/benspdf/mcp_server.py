@@ -31,6 +31,7 @@ from benspdf import (
     PDFPageCounterTool,
     check_access,
     check_text,
+    extract_text,
     ocr,
     read_metadata,
     read_page_layout,
@@ -44,7 +45,7 @@ except PackageNotFoundError:  # running from a source checkout
     _VERSION = "0.0.0.dev0"
 
 #: The contract every tool shares, sent once with the server rather than repeated
-#: in eight descriptions. Each tool still calls its `ref` a path or artifact id,
+#: in every description. Each tool still calls its `ref` a path or artifact id,
 #: because not every client passes these instructions to the model, and that one
 #: fact is the only part a model cannot recover from a result.
 INSTRUCTIONS = """BensPDF reads and edits PDFs on the user's own machine. \
@@ -184,6 +185,46 @@ def pdf_check_text(ref: str) -> Dict[str, Any]:
         return benscore.err(str(exc), file_path=str(ref), file_exists=False)
 
     return check_text(str(resolved))
+
+
+@mcp.tool()
+def pdf_extract_text(
+    ref: str,
+    pages: Optional[str] = None,
+    output: str = "text",
+    layout: bool = False,
+) -> Dict[str, Any]:
+    """Read the text of a PDF that has one, page by page.
+
+    The cheap and exact way to read a document: milliseconds a page, and the
+    characters are the ones the file holds. Prefer it to pdf_ocr, which is for
+    pages carrying no text, and to pdf_render_pages, which costs an image a page.
+    pdf_check_text says which path a file needs; page numbers come back with the
+    text, so quote page 8 rather than "the document".
+
+    A long document arrives in ranges: one call returns about 50,000 characters
+    and names the pages it did not reach, so when `truncated`, do what the summary
+    says. `output="txt"` writes the whole extraction to an artifact and returns
+    the counts alone, which is the way to read a book.
+
+    Text on a `text_suspect` page came back partly undecodable, because the fonts
+    carry no character map: say so rather than quoting it, and look at the page
+    with pdf_render_pages.
+
+    Args:
+        ref: PDF file path, or a workspace artifact id.
+        pages: Which pages: "1-10", "3", "1,5,9-12" or "all". Defaults to all.
+        output: "text", "txt" for the text as an artifact, or "both".
+        layout: Keep the page's spacing, for forms and tables. Costs characters.
+    """
+    try:
+        resolved = benscore.resolve(ref)
+    except benscore.ArtifactNotFound as exc:
+        return benscore.err(str(exc), file_exists=False)
+    except (FileNotFoundError, IsADirectoryError) as exc:
+        return benscore.err(str(exc), file_path=str(ref), file_exists=False)
+
+    return extract_text(str(resolved), pages=pages, output=output, layout=layout)
 
 
 @mcp.tool()

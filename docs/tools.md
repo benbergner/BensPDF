@@ -120,6 +120,92 @@ true`, which is worth knowing when you read them: the text is what OCR made of t
 page, so it can hold recognition errors. `ocred_pages` counts them, and a document
 you only OCR'd part of comes back `mixed`, with the rest still needing a pass.
 
+## `pdf_extract_text(ref, pages=None, output="text", layout=False)`
+
+The text a PDF already holds, page by page. This is the cheap, exact way to read a
+document: the characters come from the file, so a page is milliseconds and nothing
+is guessed.
+
+```python
+from benspdf import extract_text
+
+extract_text("~/Downloads/paper.pdf", pages="1")
+```
+
+```python
+{'success': True,
+ 'file_name': 'paper.pdf',
+ 'page_count': 44,
+ 'mode': 'plain',
+ 'pages': [{'page': 1,
+            'characters': 3980,
+            'words': 604,
+            'text': 'Attention Is All You Need\nAshish Vaswani, Noam Shazeer\n...'}],
+ 'pages_read': 1,
+ 'characters': 3980,
+ 'words': 604,
+ 'truncated': False,
+ 'failed': [],
+ 'character_budget': 50000,
+ 'summary': 'Extracted the text of 1 page of paper.pdf (page 1): 3980 characters, '
+            '604 words.'}
+```
+
+The text arrives per page, with the page number beside it, so an answer can cite
+page 8 rather than quote a document-sized blob. `pdf_check_text` tells you which
+files this works on; for a scan, `pdf_ocr` is the tool.
+
+### Long documents
+
+A book holds more text than a client can take in one result, so one call returns
+about 50,000 characters — roughly 12,500 tokens. Past that it stops, sets
+`truncated: True`, and names what it didn't reach in `pages_remaining`, with
+`stopped_for` saying which budget it met.
+
+```python
+first = extract_text("book.pdf")
+first["pages_read"]                       # 29
+first["pages_remaining"]                  # '30-240'
+second = extract_text("book.pdf", pages="30-240")
+```
+
+`output="txt"` is the other way through: the whole extraction goes to a `.txt`
+artifact and the result keeps the counts alone, so any length is one call.
+
+```python
+whole = extract_text("book.pdf", output="txt")
+whole["artifact"]                         # 'art_784c0409.txt'
+whole["characters"]                       # 614845
+```
+
+Pages in the file are separated by a form feed, the plain-text page break, so
+`text.split("\f")` gives them back. `output="both"` returns the text inline as
+well, up to the same character budget, and `text_omitted_pages` names the pages
+whose text is in the file only. A second budget stops a call at 20 seconds, a few
+hundred pages.
+
+### Text worth a second look
+
+Most PDFs say what their glyphs mean, in a `/ToUnicode` map. A page that has no
+map and comes back holding characters that decoded to nothing is flagged
+`text_suspect`, with `unmappable_characters` counting them, and `suspect_pages`
+collects those page numbers. Both signals have to appear together, because plenty
+of perfectly readable files are missing the map — which keeps the flag rare enough
+to be worth acting on. When it shows up, `pdf_render_pages` shows you what the page
+actually says and `pdf_ocr` with `force=True` re-reads it.
+
+`empty_pages` names the pages that hold no text at all, and a document where
+nothing does gets a summary pointing at `pdf_check_text` and `pdf_ocr`.
+
+### Forms and tables
+
+`layout=True` keeps the page's own spacing instead of reading it as prose, which
+is what a form or a table is: values stay under their headings and columns stay
+apart. The alignment costs characters, several times the plain text on a sparse
+page, so it's per call rather than the default and prose reads better without it. A
+page whose layout can't be worked out comes back as prose and is named in
+`pages_read_as_plain`, so asking for spacing never costs you the text.
+
 ## `pdf_check_access(ref)`
 
 Encryption and permissions, which are one question rather than two: a PDF has
@@ -175,7 +261,7 @@ Page sizes, orientation, rotation and the page boxes.
 ```python
 from benspdf import read_page_layout
 
-read_page_layout("~/Downloads/thesis.pdf")
+read_page_layout("~/Downloads/report.pdf")
 ```
 
 ```python
@@ -208,7 +294,7 @@ which is why a scan can look "wrong" in one viewer and fine in another.
 page:
 
 ```python
-read_page_layout("~/Downloads/thesis.pdf", "212")
+read_page_layout("~/Downloads/report.pdf", "212")
 # {'page': 212, 'width_pt': 841.9, 'height_pt': 595.3, 'rotation': 90,
 #  'paper': 'A4', 'orientation': 'landscape',
 #  'boxes': {'media': [0.0, 0.0, 595.28, 841.89]}, ...}

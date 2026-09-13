@@ -1,9 +1,9 @@
 """
 The `pages` argument, shared by every verb that takes one.
 
-The exception to one-module-per-verb in this package: `pdf_page_layout` and
-`pdf_render_pages` already take the same range syntax, and `pdf_extract_text`,
-`pdf_split`, `pdf_rotate` and `pdf_delete_pages` all will. One parser means one
+The exception to one-module-per-verb in this package: `pdf_page_layout`,
+`pdf_render_pages`, `pdf_ocr` and `pdf_extract_text` already take the same range
+syntax, and `pdf_split`, `pdf_rotate` and `pdf_delete_pages` all will. One parser means one
 syntax, one set of error messages, and one place to fix a bug in either.
 """
 

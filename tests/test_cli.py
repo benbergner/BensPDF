@@ -16,13 +16,13 @@ class TestDescribe:
         result = {
             "success": True,
             "page_count": 213,
-            "file_name": "thesis.pdf",
+            "file_name": "report.pdf",
             "rendered": 1,
-            "summary": "Rendered 1 page of thesis.pdf (page 212) as PNG at 150 dpi.",
+            "summary": "Rendered 1 page of report.pdf (page 212) as PNG at 150 dpi.",
         }
 
         assert _describe(result) == (
-            "Result: Rendered 1 page of thesis.pdf (page 212) as PNG at 150 dpi."
+            "Result: Rendered 1 page of report.pdf (page 212) as PNG at 150 dpi."
         )
 
     def test_does_not_report_document_length_as_the_answer(self):
@@ -30,7 +30,7 @@ class TestDescribe:
         result = {
             "success": True,
             "page_count": 213,
-            "file_name": "thesis.pdf",
+            "file_name": "report.pdf",
             "rendered": 1,
             "summary": "Rendered 1 page.",
         }

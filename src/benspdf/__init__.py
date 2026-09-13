@@ -11,6 +11,7 @@ belong to the PDF package.
 from .tools.check_access import check_access
 from .tools.check_text import check_text
 from .tools.create_test_pdf import create_test_pdf, create_test_pdf_bytes
+from .tools.extract_text import extract_text
 from .tools.metadata import read_metadata
 from .tools.ocr import ocr
 from .tools.page_count import PDFPageCounterTool, create_tool
@@ -23,6 +24,7 @@ __all__ = [
     "create_tool",
     "read_metadata",
     "check_text",
+    "extract_text",
     "check_access",
     "read_page_layout",
     "render_pages",

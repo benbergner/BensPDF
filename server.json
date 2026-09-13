@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.benbergner/benspdf",
-  "description": "Read PDFs locally: pages, metadata, scan detection, layout, permissions, rendering, OCR.",
-  "version": "0.2.0",
+  "description": "Read PDFs locally: text, pages, metadata, scan detection, layout, permissions, render, OCR.",
+  "version": "0.3.0",
   "repository": {
     "url": "https://github.com/benbergner/BensPDF",
     "source": "github"
@@ -11,7 +11,7 @@
     {
       "registryType": "pypi",
       "identifier": "benspdf-mcp",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
